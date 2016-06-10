@@ -9,11 +9,15 @@
 
  *******************************************************************************/
 
-#define EEPROM_LAYOUT_HASH 0x8C000000
-#define EEPROM_OSCCAL_START 0x10
-#define EEPROM_APP_EUI_START 0x20
-#define EEPROM_DEV_EUI_START 0x30
-#define EEPROM_APP_KEY_START 0x40
+#define EEPROM_LAYOUT_MAGIC 0x2a60af86 // Just a random number, stored little-endian
+#define EEPROM_LAYOUT_MAGIC_START 0x00 // 4 bytes
+#define EEPROM_OSCCAL_START (EEPROM_LAYOUT_MAGIC_START + 4) // 1 byte
+#define EEPROM_APP_EUI_START (EEPROM_OSCCAL_START + 1)
+#define EEPROM_APP_EUI_LEN 8
+#define EEPROM_DEV_EUI_START (EEPROM_APP_EUI_START + EEPROM_APP_EUI_LEN)
+#define EEPROM_DEV_EUI_LEN 8
+#define EEPROM_APP_KEY_START (EEPROM_DEV_EUI_START + EEPROM_DEV_EUI_LEN)
+#define EEPROM_APP_KEY_LEN 16
 
 #include <lmic.h>
 #include <hal/hal.h>
@@ -25,19 +29,19 @@ void updateTransceiver() {
 }
 
 void os_getArtEui (u1_t* buf) {
-  for (byte i = 0; i < 8; i++) {
-    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + (7 - i));
+  for (byte i = 0; i < EEPROM_APP_EUI_LEN; i++) {
+    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + EEPROM_APP_EUI_LEN - 1 - i);
   }
 }
 
 void os_getDevEui (u1_t* buf) {
-  for (byte i = 0; i < 8; i++) {
-    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_DEV_EUI_START + (7 - i));
+  for (byte i = 0; i < EEPROM_DEV_EUI_LEN; i++) {
+    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_DEV_EUI_START + EEPROM_DEV_EUI_LEN - 1 - i);
   }
 }
 
 void os_getDevKey (u1_t* buf) {
-  for (byte i = 0; i < 16; i++) {
+  for (byte i = 0; i < EEPROM_APP_KEY_START; i++) {
     buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_KEY_START + i);
   }
 }
@@ -111,7 +115,7 @@ void onEvent (ev_t ev) {
 void mjs_lmic_setup() {
   // Check whether the layout of the EEPROM is correct
   uint32_t hash = eeprom_read_dword(0x00);
-  if (hash != EEPROM_LAYOUT_HASH) {
+  if (hash != EEPROM_LAYOUT_MAGIC) {
     Serial.begin(9600);
     Serial.println(F("EEPROM is not correctly configured"));
 
