@@ -12,6 +12,7 @@
 #define UPDATE_INTERVAL 15 * 60 * 1000
 
 #define DEBUG
+#define GPS_TIMEOUT 5000
 
 #define GPS_PIN 8
 #define GPS_VCC 20
@@ -28,7 +29,7 @@
 SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
 TinyGPSPlus gps;
 HTU21D htu;
-unsigned long lastUpdateTime;
+unsigned long lastUpdateTime = 0;
 float temperature;
 float humidity;
 
@@ -36,7 +37,6 @@ void setup() {
 
   // Let LMIC start up
   mjs_lmic_setup();
-
 
 #ifdef DEBUG
   Serial.begin(9600);
@@ -57,18 +57,19 @@ void setup() {
 }
 
 void loop() {
-#ifdef DEBUG
+//#ifdef DEBUG
   debugLoop();
-#else
-  sleepLoop();
-#endif
+//#else
+//  sleepLoop();
+//#endifx
+  os_runloop_once();
 }
 
 void debugLoop() {
   unsigned long currentTime = millis();
   boolean hasPosition = false;
 
-  if (currentTime - lastUpdateTime > UPDATE_INTERVAL) {
+  if ((currentTime - lastUpdateTime) > UPDATE_INTERVAL || lastUpdateTime == 0) {
     Serial.print(F("lng/lat: "));
 
     hasPosition = getPosition();
@@ -81,9 +82,6 @@ void debugLoop() {
     else {
       Serial.println(F("No GPS detected: check wiring."));
     }
-    Serial.flush();
-
-    lastUpdateTime = currentTime;
 
     Serial.print(F("tmp/hum: "));
 
@@ -141,7 +139,7 @@ boolean getPosition()
 {
   digitalWrite(GPS_VCC, HIGH);
   unsigned long startTime = millis();
-  while (millis() - startTime < 60000) {
+  while (millis() - startTime < GPS_TIMEOUT) {
     if (gpsSerial.available() > 0) {
       if (gps.encode(gpsSerial.read())) {
         if (gps.location.isValid()) {
@@ -175,8 +173,8 @@ void sendData() {
   data[7] = tmp16 & 0xF0;
 
   int16_t hum16 = (uint16_t)(humidity * 16);
-  data[8] |= hum16 >> 8 & 0x0F;
-  data[9] = hum16 & 0xFF;
+  data[7] |= hum16 >> 8 & 0x0F;
+  data[8] = hum16 & 0xFF;
 
   // pack other values: rain, light, moist
   // ...
@@ -192,11 +190,13 @@ void sendData() {
 #endif
   } else {
     // Prepare upstream data transmission at the next possible time.
-    LMIC_setTxData2(1, data, sizeof(data) - 1, 0);
+    LMIC_setTxData2(1, data, sizeof(data), 0);
 #ifdef DEBUG
     Serial.println(F("Packet queued"));
 #endif
   }
-  os_runloop_once();
+
+  
+  
 }
 

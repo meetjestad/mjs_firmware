@@ -9,7 +9,7 @@
 
  *******************************************************************************/
 
-#define EEPROM_LAYOUT_HASH 0x8C
+#define EEPROM_LAYOUT_HASH 0x8C000000
 #define EEPROM_OSCCAL_START 0x10
 #define EEPROM_APP_EUI_START 0x20
 #define EEPROM_DEV_EUI_START 0x30
@@ -28,7 +28,7 @@ void os_getArtEui (u1_t* buf) {
 
 void os_getDevEui (u1_t* buf) {
   for (byte i = 0; i < 8; i++) {
-    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_DEV_EUI_START + i);
+    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_DEV_EUI_START + (7 - i));
   }
 }
 
@@ -111,7 +111,7 @@ void mjs_lmic_setup() {
   if (hash != EEPROM_LAYOUT_HASH) {
     Serial.begin(9600);
     Serial.println(F("EEPROM is not correctly configured"));
-    
+
     while (true) {
       digitalWrite(LED_PIN, HIGH);
       delay(250);
@@ -121,7 +121,10 @@ void mjs_lmic_setup() {
   }
 
   // Write OSCCAL from EEPROM
-  OSCCAL = eeprom_read_byte((uint8_t*)EEPROM_OSCCAL_START);
+  uint8_t osccal_byte = eeprom_read_byte((uint8_t*)EEPROM_OSCCAL_START);
+  if (osccal_byte != 0xff) {
+    OSCCAL = osccal_byte;
+  }
 
   // LMIC init
   os_init();
