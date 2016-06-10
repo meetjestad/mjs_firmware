@@ -20,6 +20,10 @@
 #include <SPI.h>
 #include <avr/eeprom.h>
 
+void updateTransceiver() {
+  os_runloop_once();
+}
+
 void os_getArtEui (u1_t* buf) {
   for (byte i = 0; i < 8; i++) {
     buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + (7 - i));
@@ -105,7 +109,6 @@ void onEvent (ev_t ev) {
 }
 
 void mjs_lmic_setup() {
-
   // Check whether the layout of the EEPROM is correct
   uint32_t hash = eeprom_read_dword(0x00);
   if (hash != EEPROM_LAYOUT_HASH) {
@@ -113,10 +116,10 @@ void mjs_lmic_setup() {
     Serial.println(F("EEPROM is not correctly configured"));
 
     while (true) {
-      digitalWrite(LED_PIN, HIGH);
-      delay(250);
-      digitalWrite(LED_PIN, LOW);
-      delay(250);
+//      digitalWrite(LED_PIN, HIGH);
+//      delay(250);
+//      digitalWrite(LED_PIN, LOW);
+//      delay(250);
     }
   }
 
