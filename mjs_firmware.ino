@@ -48,11 +48,11 @@ unsigned long lastUpdateTime = 0;
 void setup() {
   // setup LoRa transceiver
   mjs_lmic_setup();
-  
+
   // setup switched ground and power down connected peripherals (GPS module)
   pinMode(SW_GND_PIN, OUTPUT);
   digitalWrite(SW_GND_PIN, LOW);
-  
+
   // blink 'hello'
   digitalWrite(LED_PIN, HIGH);
   delay(500);
@@ -63,7 +63,7 @@ void setup() {
     Serial.begin(9600);
     Serial.println(F("Start"));
   }
-  
+
   // start communication to sensors
   htu.begin();
   gpsSerial.begin(9600);
@@ -74,7 +74,7 @@ void loop() {
   if (DEBUG) debugLoop();
   // ... or an energysaving mode of measurements alternated with deep sleep
   else sleepLoop();
-  
+
   // keep the transceiver going
   updateTransceiver();
 }
@@ -82,12 +82,12 @@ void loop() {
 void debugLoop() {
   unsigned long currentTime = millis();
   boolean hasPosition = false;
-  
+
   if ((currentTime - lastUpdateTime) > UPDATE_INTERVAL || lastUpdateTime == 0) {
     Serial.print(F("lng/lat: "));
-    
+
     hasPosition = getPosition();
-    
+
     if (hasPosition) {
       Serial.print(gps.location.lng(), 6);
       Serial.print(F(","));
@@ -96,21 +96,21 @@ void debugLoop() {
     else {
       Serial.println(F("No GPS found: check wiring"));
     }
-    
+
     Serial.print(F("tmp/hum: "));
-    
+
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
-    
+
     Serial.print(temperature, 1);
     Serial.print(F(","));
     Serial.println(humidity, 1);
     Serial.flush();
-    
+
     digitalWrite(LED_PIN, HIGH);
     sendData();
     digitalWrite(LED_PIN, LOW);
-    
+
     lastUpdateTime = currentTime;
   }
 }
