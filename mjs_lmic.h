@@ -22,7 +22,7 @@
 
 void os_getArtEui (u1_t* buf) {
   for (byte i = 0; i < 8; i++) {
-    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + i);
+    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + (7 - i));
   }
 }
 
