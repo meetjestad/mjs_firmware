@@ -9,15 +9,13 @@
 
  *******************************************************************************/
 
-
 #define UPDATE_INTERVAL 15 * 60 * 1000
-#define TX_INTERVAL 15 * 60 * 1000  // TODO, why?
+
 #define DEBUG
 
 #define GPS_PIN 8
-#define GPS_VCC
-#define LED_PIN
-
+#define GPS_VCC 20
+#define LED_PIN 21
 
 #include <SPI.h>
 #include <SoftwareSerial.h>
@@ -35,29 +33,27 @@ float temperature;
 float humidity;
 
 void setup() {
+
+  // Let LMIC start up
+  mjs_lmic_setup();
+
+
+#ifdef DEBUG
   Serial.begin(9600);
   Serial.println(F("Starting"));
+#endif
 
-  // set PB6 aka sw_gndPin to OUTPUT mode
-  // to be replaced with:
-  // pinMode(sw_gndPin, OUTPUT);
-  DDRB |= (1 << DDB6);
+  pinMode(GPS_VCC, OUTPUT);
+  digitalWrite(GPS_VCC, LOW);
 
-  // set PB6 aka sw_gndPin LOW
-  // to be replaced with
-  // digitalWrite(sw_gndPin, LOW);
-  PORTB &= ~(1 << PORTB6);
-
-  // digitalWrite(ledPin, HIGH);
-  PORTB |= (1 << PORTB7);
+  digitalWrite(LED_PIN, HIGH);
   delay(500);
-  // digitalWrite(ledPin, LOW);
-  PORTB &= ~(1 << PORTB7);
+  digitalWrite(LED_PIN, LOW);
 
   gpsSerial.begin(9600);
   htu.begin();
 
-  mjs_lmic_setup();
+
 }
 
 void loop() {
@@ -89,7 +85,6 @@ void debugLoop() {
 
     lastUpdateTime = currentTime;
 
-    PORTB |= (1 << PORTB7);
     Serial.print(F("tmp/hum: "));
 
     temperature = htu.readTemperature();
@@ -100,11 +95,12 @@ void debugLoop() {
     Serial.println(humidity, 1);
     Serial.flush();
 
+    digitalWrite(LED_PIN, HIGH);
     sendData();
+    digitalWrite(LED_PIN, LOW);
 
     lastUpdateTime = currentTime;
 
-    PORTB &= ~(1 << PORTB7);
   }
 
 }
@@ -143,22 +139,19 @@ void doSleep(uint32_t time) {
 
 boolean getPosition()
 {
-  // digitalWrite(sw_gndPin, HIGH);
-  PORTB |= (1 << PORTB6);
+  digitalWrite(GPS_VCC, HIGH);
   unsigned long startTime = millis();
   while (millis() - startTime < 60000) {
     if (gpsSerial.available() > 0) {
       if (gps.encode(gpsSerial.read())) {
         if (gps.location.isValid()) {
-          // digitalWrite(sw_gndPin, LOW);
-          PORTB &= ~(1 << PORTB6);
+          digitalWrite(GPS_VCC, LOW);
           return true;
         }
       }
     }
   }
-  // digitalWrite(sw_gndPin, LOW);
-  PORTB &= ~(1 << PORTB6);
+  digitalWrite(GPS_VCC, LOW);
   return false;
 }
 

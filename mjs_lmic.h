@@ -9,50 +9,41 @@
 
  *******************************************************************************/
 
+#define EEPROM_LAYOUT_HASH 0x8C
+#define EEPROM_OSCCAL_START 0x10
+#define EEPROM_APP_EUI_START 0x20
+#define EEPROM_DEV_EUI_START 0x30
+#define EEPROM_APP_KEY_START 0x40
+
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
+#include <avr/eeprom.h>
 
-// LoRaWAN NwkSKey, network session key
-// This is the default Semtech key, which is used by the prototype TTN
-// network initially.
-static const PROGMEM u1_t NWKSKEY[16] = { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C };
+void os_getArtEui (u1_t* buf) {
+  for (byte i = 0; i < 8; i++) {
+    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + i);
+  }
+}
 
-// LoRaWAN AppSKey, application session key
-// This is the default Semtech key, which is used by the prototype TTN
-// network initially.
-static const u1_t PROGMEM APPSKEY[16] = { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C };
+void os_getDevEui (u1_t* buf) {
+  for (byte i = 0; i < 8; i++) {
+    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_DEV_EUI_START + i);
+  }
+}
 
-// LoRaWAN end-device address (DevAddr)
-// See http://thethingsnetwork.org/wiki/AddressSpace
-static const u4_t DEVADDR = 0x03FF0001 ; // <-- Change this address for every node!
+void os_getDevKey (u1_t* buf) {
+  for (byte i = 0; i < 16; i++) {
+    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_KEY_START + i);
+  }
+}
 
-// These callbacks are only used in over-the-air activation, so they are
-// left empty here (we cannot leave them out completely unless
-// DISABLE_JOIN is set in config.h, otherwise the linker will complain).
-void os_getArtEui (u1_t* buf) { }
-void os_getDevEui (u1_t* buf) { }
-void os_getDevKey (u1_t* buf) { }
-
-// Pin mapping
 const lmic_pinmap lmic_pins = {
   .nss = 10,
   .rxtx = LMIC_UNUSED_PIN,
   .rst = 9,
   .dio = {2, 3, 4},
 };
-
-void do_send(osjob_t* j) {
-  // Check if there is not a current TX/RX job running
-  if (LMIC.opmode & OP_TXRXPEND) {
-    Serial.println(F("OP_TXRXPEND, not sending"));
-  } else {
-    // Prepare upstream data transmission at the next possible time.
-    // LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
-    Serial.println(F("Packet queued"));
-  }
-  // Next TX is scheduled after TX_COMPLETE event.
-}
 
 void onEvent (ev_t ev) {
 #ifdef DEBUG
@@ -114,26 +105,28 @@ void onEvent (ev_t ev) {
 }
 
 void mjs_lmic_setup() {
+
+  // Check whether the layout of the EEPROM is correct
+  uint32_t hash = eeprom_read_dword(0x00);
+  if (hash != EEPROM_LAYOUT_HASH) {
+    Serial.begin(9600);
+    Serial.println(F("EEPROM is not correctly configured"));
+    
+    while (true) {
+      digitalWrite(LED_PIN, HIGH);
+      delay(250);
+      digitalWrite(LED_PIN, LOW);
+      delay(250);
+    }
+  }
+
+  // Write OSCCAL from EEPROM
+  OSCCAL = eeprom_read_byte((uint8_t*)EEPROM_OSCCAL_START);
+
   // LMIC init
   os_init();
   // Reset the MAC state. Session and pending data transfers will be discarded.
   LMIC_reset();
-
-  // Set static session parameters. Instead of dynamically establishing a session
-  // by joining the network, precomputed session parameters are be provided.
-#ifdef PROGMEM
-  // On AVR, these values are stored in flash and only copied to RAM
-  // once. Copy them to a temporary buffer here, LMIC_setSession will
-  // copy them into a buffer of its own again.
-  uint8_t appskey[sizeof(APPSKEY)];
-  uint8_t nwkskey[sizeof(NWKSKEY)];
-  memcpy_P(appskey, APPSKEY, sizeof(APPSKEY));
-  memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
-  LMIC_setSession (0x1, DEVADDR, nwkskey, appskey);
-#else
-  // If not running an AVR with PROGMEM, just use the arrays directly
-  LMIC_setSession (0x1, DEVADDR, NWKSKEY, APPSKEY);
-#endif
 
   // Set up the channels used by the Things Network, which corresponds
   // to the defaults of most gateways. Without this, only three base
@@ -162,5 +155,8 @@ void mjs_lmic_setup() {
 
   // Set data rate and transmit power (note: txpow seems to be ignored by the library)
   LMIC_setDrTxpow(DR_SF7, 14);
+
+  // Let LMIC compensate for +/- 1% clock error
+  LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
 }
 
