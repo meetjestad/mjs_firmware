@@ -19,14 +19,13 @@
 #define EEPROM_APP_KEY_START (EEPROM_DEV_EUI_START + EEPROM_DEV_EUI_LEN)
 #define EEPROM_APP_KEY_LEN 16
 
+// Try transmission for up to 60 seconds (this includes joining)
+const uint32_t TX_TIMEOUT = 60000;
+
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
 #include <avr/eeprom.h>
-
-void updateTransceiver() {
-  os_runloop_once();
-}
 
 void os_getArtEui (u1_t* buf) {
   for (byte i = 0; i < EEPROM_APP_EUI_LEN; i++) {
@@ -53,7 +52,12 @@ const lmic_pinmap lmic_pins = {
   .dio = {2, 3, 4},
 };
 
+ev_t waitingForEvent = (ev_t)0;
+
 void onEvent (ev_t ev) {
+  if (waitingForEvent == ev)
+    waitingForEvent = (ev_t)0;
+
   if (DEBUG) {
     Serial.print(os_getTime());
     Serial.print(": ");
@@ -172,3 +176,15 @@ void mjs_lmic_setup() {
   LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
 }
 
+void mjs_lmic_wait_for_txcomplete() {
+  waitingForEvent = EV_TXCOMPLETE;
+  uint32_t start = millis();
+  while(waitingForEvent && millis() - start < TX_TIMEOUT)
+    os_runloop_once();
+  if (DEBUG) {
+    if (waitingForEvent)
+      Serial.println(F("Transmit timeout"));
+    else
+      Serial.println(F("Transmit complete"));
+  }
+}

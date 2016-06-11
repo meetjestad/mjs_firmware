@@ -44,7 +44,11 @@ byte const LED_PIN = 21;
 // setup timing variables
 long const UPDATE_INTERVAL = 900000;
 int const GPS_TIMEOUT = 60000;
+// Update GPS position after transmitting this many updates
+int const GPS_UPDATE_RATIO = 24*4
+
 unsigned long lastUpdateTime = 0;
+unsigned long updatesBeforeGpsUpdate = 0;
 gps_fix gps_data;
 
 int const LORA_PORT = 10;
@@ -74,66 +78,40 @@ void setup() {
 }
 
 void loop() {
-  // depending on the DEBUG variable enter either a function with regular measurements and verbose feedback over serial monitor...
-  if (DEBUG) debugLoop();
-  // ... or an energysaving mode of measurements alternated with deep sleep
-  else sleepLoop();
-
-  // keep the transceiver going
-  updateTransceiver();
-}
-
-void debugLoop() {
-  unsigned long currentTime = millis();
-  boolean hasPosition = false;
-
-  if ((currentTime - lastUpdateTime) > UPDATE_INTERVAL || lastUpdateTime == 0) {
-    Serial.print(F("lat/lon: "));
-
-    hasPosition = getPosition();
-
-    if (hasPosition) {
-      Serial.print(gps_data.latitudeL()/10000000.0, 6);
-      Serial.print(F(","));
-      Serial.println(gps_data.longitudeL()/10000000.0, 6);
-    }
-    else {
-      Serial.println(F("No GPS found: check wiring"));
-    }
-
-    Serial.print(F("tmp/hum: "));
-
-    temperature = htu.readTemperature();
-    humidity = htu.readHumidity();
-
-    Serial.print(temperature, 1);
-    Serial.print(F(","));
-    Serial.println(humidity, 1);
-    Serial.flush();
-
-    digitalWrite(LED_PIN, HIGH);
-    sendData();
-    digitalWrite(LED_PIN, LOW);
-
-    lastUpdateTime = currentTime;
-  }
-}
-
-void sleepLoop() {
   // We need to calculate how long we should sleep, so we need to know how long we were awake
   unsigned long startMillis = millis();
 
+  // Activate GPS every now and then to update our position
+  if (updatesBeforeGpsUpdate == 0) {
+    getPosition();
+    updatesBeforeGpsUpdate = GPS_UPDATE_RATIO;
+  }
+  updatesBeforeGpsUpdate--;
+
   // Activate and read our sensors
-  getPosition();
   temperature = htu.readTemperature();
   humidity = htu.readHumidity();
 
+  if (DEBUG)
+    dumpData();
+
   // We can now send the data
-  sendData();
+  queueData();
+
+  mjs_lmic_wait_for_txcomplete();
 
   // Schedule sleep
   unsigned long sleepDuration = UPDATE_INTERVAL - (millis() - startMillis);
+  if (DEBUG) {
+    Serial.print(F("Sleeping for "));
+    Serial.print(sleepDuration);
+    Serial.println(F("ms..."));
+    Serial.flush();
+  }
   doSleep(sleepDuration);
+  if (DEBUG) {
+    Serial.println(F("Woke up."));
+  }
 }
 
 void doSleep(uint32_t time) {
@@ -150,19 +128,38 @@ void doSleep(uint32_t time) {
   }
 }
 
+void dumpData() {
+  if (gps_data.valid.location) {
+    Serial.print(F("lat/lon: "));
+    Serial.print(gps_data.latitudeL()/10000000.0, 6);
+    Serial.print(F(","));
+    Serial.println(gps_data.longitudeL()/10000000.0, 6);
+  } else {
+    Serial.println(F("No GPS (fix) found: check wiring"));
+  }
+
+  Serial.print(F("tmp/hum: "));
+  Serial.print(temperature, 1);
+  Serial.print(F(","));
+  Serial.println(humidity, 1);
+  Serial.flush();
+}
+
 boolean getPosition()
 {
   digitalWrite(SW_GND_PIN, HIGH);
+  if (DEBUG)
+    Serial.println(F("Waiting for GPS..."));
+
   unsigned long startTime = millis();
   while (millis() - startTime < GPS_TIMEOUT && !gps_data.valid.location) {
     if (gps.available(gpsSerial))
       gps_data = gps.read();
   }
   digitalWrite(SW_GND_PIN, LOW);
-  return gps_data.valid.location;
 }
 
-void sendData() {
+void queueData() {
   uint8_t data[9];
 
   // pack geoposition
