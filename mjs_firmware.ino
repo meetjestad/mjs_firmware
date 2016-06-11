@@ -88,14 +88,14 @@ void debugLoop() {
   boolean hasPosition = false;
 
   if ((currentTime - lastUpdateTime) > UPDATE_INTERVAL || lastUpdateTime == 0) {
-    Serial.print(F("lng/lat: "));
+    Serial.print(F("lat/lon: "));
 
     hasPosition = getPosition();
 
     if (hasPosition) {
-      Serial.print(gps_data.longitudeL()/10000000.0, 6);
+      Serial.print(gps_data.latitudeL()/10000000.0, 6);
       Serial.print(F(","));
-      Serial.println(gps_data.latitudeL()/10000000.0, 6);
+      Serial.println(gps_data.longitudeL()/10000000.0, 6);
     }
     else {
       Serial.println(F("No GPS found: check wiring"));
