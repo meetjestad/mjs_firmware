@@ -166,15 +166,15 @@ void sendData() {
   uint8_t data[9];
 
   // pack geoposition
-  uint32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
-  data[0] = lng24 >> 16 & 0xFF;
-  data[1] = lng24 >> 8 & 0xFF;
-  data[2] = lng24 & 0xFF;
-
   uint32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
-  data[3] = lat24 >> 16 & 0xFF;
-  data[4] = lat24 >> 8 & 0xFF;
-  data[5] = lat24 & 0xFF;
+  data[0] = lat24 >> 16 & 0xFF;
+  data[1] = lat24 >> 8 & 0xFF;
+  data[2] = lat24 & 0xFF;
+
+  uint32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
+  data[3] = lng24 >> 16 & 0xFF;
+  data[4] = lng24 >> 8 & 0xFF;
+  data[5] = lng24 & 0xFF;
 
   // pack temperature and humidity
   int16_t tmp16 = (uint16_t)(temperature * 16) << 4;
