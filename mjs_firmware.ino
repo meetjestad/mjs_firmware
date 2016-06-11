@@ -47,6 +47,8 @@ int const GPS_TIMEOUT = 60000;
 unsigned long lastUpdateTime = 0;
 gps_fix gps_data;
 
+int const LORA_PORT = 10;
+
 void setup() {
   // setup LoRa transceiver
   mjs_lmic_setup();
@@ -161,7 +163,7 @@ boolean getPosition()
 }
 
 void sendData() {
-  uint8_t data[14];
+  uint8_t data[9];
 
   // pack geoposition
   uint32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
@@ -183,20 +185,8 @@ void sendData() {
   data[7] |= hum16 >> 8 & 0x0F;
   data[8] = hum16 & 0xFF;
 
-  // pack other values: rain, light, moist
-  // ...
-  data[10] = 0;
-  data[11] = 0;
-  data[12] = 0;
-  data[13] = 0;
-
-  // send over LoRaWAN, using experiment identifier for port selection
-  if (LMIC.opmode & OP_TXRXPEND) {
-    if(DEBUG) Serial.println(F("OP_TXRXPEND, not sending"));
-  } else {
-    // Prepare upstream data transmission at the next possible time.
-    LMIC_setTxData2(1, data, sizeof(data), 0);
-    if(DEBUG) Serial.println(F("Packet queued"));
-  }
+  // Prepare upstream data transmission at the next possible time.
+  LMIC_setTxData2(LORA_PORT, data, sizeof(data), 0);
+  if(DEBUG) Serial.println(F("Packet queued"));
 }
 

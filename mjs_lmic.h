@@ -163,8 +163,10 @@ void mjs_lmic_setup() {
   // Disable link check validation
   LMIC_setLinkCheckMode(0);
 
-  // Set data rate and transmit power (note: txpow seems to be ignored by the library)
-  LMIC_setDrTxpow(DR_SF7, 14);
+  // Use a fixed data rate of SF9 (not sure if tx power is actually
+  // used). SF9 is the lowest datarate that (withing the TTN fair-usage-policy of 30 seconds of airtime
+  // per day) allows us to send at least 4 packets every hour.
+  LMIC_setDrTxpow(DR_SF9, 14);
 
   // Let LMIC compensate for +/- 1% clock error
   LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
