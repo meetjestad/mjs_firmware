@@ -20,7 +20,7 @@
 #include <Wire.h>
 #include <SparkFunHTU21D.h>
 #include <SoftwareSerial.h>
-#include <TinyGPS++.h>
+#include <NMEAGPS.h>
 #include <Adafruit_SleepyDog.h>
 
 // set run mode
@@ -29,7 +29,7 @@ boolean const DEBUG = true;
 // setup GPS module
 byte const GPS_PIN = 8;
 SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
-TinyGPSPlus gps;
+NMEAGPS gps;
 
 // setup temperature and humidity sensor
 HTU21D htu;
@@ -44,6 +44,7 @@ byte const LED_PIN = 21;
 long const UPDATE_INTERVAL = 900000;
 int const GPS_TIMEOUT = 5000;
 unsigned long lastUpdateTime = 0;
+gps_fix gps_data;
 
 void setup() {
   // setup LoRa transceiver
@@ -89,9 +90,9 @@ void debugLoop() {
     hasPosition = getPosition();
 
     if (hasPosition) {
-      Serial.print(gps.location.lng(), 6);
+      Serial.print(gps_data.longitudeL()/10000000.0, 6);
       Serial.print(F(","));
-      Serial.println(gps.location.lat(), 6);
+      Serial.println(gps_data.latitudeL()/10000000.0, 6);
     }
     else {
       Serial.println(F("No GPS found: check wiring"));
@@ -150,30 +151,24 @@ boolean getPosition()
 {
   digitalWrite(SW_GND_PIN, HIGH);
   unsigned long startTime = millis();
-  while (millis() - startTime < GPS_TIMEOUT) {
-    if (gpsSerial.available() > 0) {
-      if (gps.encode(gpsSerial.read())) {
-        if (gps.location.isValid()) {
-          digitalWrite(SW_GND_PIN, LOW);
-          return true;
-        }
-      }
-    }
+  while (millis() - startTime < GPS_TIMEOUT && !gps_data.valid.location) {
+    if (gps.available(gpsSerial))
+      gps_data = gps.read();
   }
   digitalWrite(SW_GND_PIN, LOW);
-  return false;
+  return gps_data.valid.location;
 }
 
 void sendData() {
   uint8_t data[14];
 
   // pack geoposition
-  uint32_t lng24 = int32_t(gps.location.lng() * 32768) << 8;
+  uint32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
   data[0] = lng24 >> 24 & 0xFF;
   data[1] = lng24 >> 16 & 0xFF;
   data[2] = lng24 >> 8 & 0xFF;
 
-  int32_t lat24 = (uint32_t)(gps.location.lat() * 32768) << 8;
+  uint32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
   data[3] = lat24 >> 24 & 0xFF;
   data[4] = lat24 >> 16 & 0xFF;
   data[5] = lat24 >> 8 & 0xFF;
