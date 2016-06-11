@@ -9,7 +9,7 @@
 
    In order to compile the following libraries need to be installed:
    - SparkFunHTU21D: https://github.com/sparkfun/SparkFun_HTU21D_Breakout_Arduino_Library
-   - TinyGPS++: http://arduiniana.org/libraries/tinygpsplus/
+   - NeoGPS: https://github.com/SlashDevin/NeoGPS
    - Adafruit_SleepyDog: https://github.com/adafruit/Adafruit_SleepyDog
    - lmic: https://github.com/matthijskooijman/arduino-lmic
  *******************************************************************************/
@@ -42,7 +42,7 @@ byte const LED_PIN = 21;
 
 // setup timing variables
 long const UPDATE_INTERVAL = 900000;
-int const GPS_TIMEOUT = 5000;
+int const GPS_TIMEOUT = 60000;
 unsigned long lastUpdateTime = 0;
 gps_fix gps_data;
 
