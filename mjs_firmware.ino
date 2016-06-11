@@ -24,10 +24,10 @@
 #include <Adafruit_SleepyDog.h>
 
 // set run mode
-boolean DEBUG = true;
+boolean const DEBUG = true;
 
 // setup GPS module
-byte GPS_PIN = 8;
+byte const GPS_PIN = 8;
 SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
 TinyGPSPlus gps;
 
@@ -37,12 +37,12 @@ float temperature;
 float humidity;
 
 // define various pins
-byte SW_GND_PIN = 20;
-byte LED_PIN = 21;
+byte const SW_GND_PIN = 20;
+byte const LED_PIN = 21;
 
 // setup timing variables
-long UPDATE_INTERVAL = 900000;
-int GPS_TIMEOUT = 5000;
+long const UPDATE_INTERVAL = 900000;
+int const GPS_TIMEOUT = 5000;
 unsigned long lastUpdateTime = 0;
 
 void setup() {
