@@ -16,7 +16,6 @@
 
 // include external libraries
 #include <SPI.h>
-#include "mjs_lmic.h"
 #include <Wire.h>
 #include <SparkFunHTU21D.h>
 #include <SoftwareSerial.h>
@@ -25,6 +24,8 @@
 
 // set run mode
 boolean const DEBUG = true;
+
+#include "mjs_lmic.h"
 
 // setup GPS module
 byte const GPS_PIN = 8;
