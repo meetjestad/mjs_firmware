@@ -79,6 +79,19 @@ void onEvent (ev_t ev) {
         break;
       case EV_JOINED:
         Serial.println(F("EV_JOINED"));
+        // TTN uses SF9 for its RX2 window. This is configured in the
+        // join accept message, but the LMIC library does not currently
+        // process this part of the join accept yet (see Arduino-LMIC issue #20).
+        LMIC.dn2Dr = DR_SF9;
+
+        // Disable link check validation
+        LMIC_setLinkCheckMode(0);
+
+        // Use a fixed data rate of SF9 (not sure if tx power is
+        // actually used). SF9 is the lowest datarate that (withing the
+        // TTN fair-usage-policy of 30 seconds of airtime per day)
+        // allows us to send at least 4 packets every hour.
+        LMIC_setDrTxpow(DR_SF9, 14);
         break;
       case EV_RFU1:
         Serial.println(F("EV_RFU1"));
@@ -163,14 +176,6 @@ void mjs_lmic_setup() {
   // devices' ping slots. LMIC does not have an easy way to define set this
   // frequency and support for class B is spotty and untested, so this
   // frequency is not configured here.
-
-  // Disable link check validation
-  LMIC_setLinkCheckMode(0);
-
-  // Use a fixed data rate of SF9 (not sure if tx power is actually
-  // used). SF9 is the lowest datarate that (withing the TTN fair-usage-policy of 30 seconds of airtime
-  // per day) allows us to send at least 4 packets every hour.
-  LMIC_setDrTxpow(DR_SF9, 14);
 
   // Let LMIC compensate for +/- 1% clock error
   LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
