@@ -45,7 +45,7 @@ byte const LED_PIN = 21;
 long const UPDATE_INTERVAL = 900000;
 int const GPS_TIMEOUT = 60000;
 // Update GPS position after transmitting this many updates
-int const GPS_UPDATE_RATIO = 24*4
+int const GPS_UPDATE_RATIO = 24*4;
 
 unsigned long lastUpdateTime = 0;
 unsigned long updatesBeforeGpsUpdate = 0;
