@@ -147,6 +147,8 @@ void dumpData() {
 
 boolean getPosition()
 {
+  memset(&gps_data, 0, sizeof(gps_data));
+
   digitalWrite(SW_GND_PIN, HIGH);
   if (DEBUG)
     Serial.println(F("Waiting for GPS..."));
