@@ -54,6 +54,12 @@ gps_fix gps_data;
 int const LORA_PORT = 10;
 
 void setup() {
+  // when in debugging mode start serial connection
+  if(DEBUG) {
+    Serial.begin(9600);
+    Serial.println(F("Start"));
+  }
+
   // setup LoRa transceiver
   mjs_lmic_setup();
 
@@ -65,12 +71,6 @@ void setup() {
   digitalWrite(LED_PIN, HIGH);
   delay(500);
   digitalWrite(LED_PIN, LOW);
-
-  // when in debugging mode start serial connection
-  if(DEBUG) {
-    Serial.begin(9600);
-    Serial.println(F("Start"));
-  }
 
   // start communication to sensors
   htu.begin();
