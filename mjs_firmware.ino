@@ -101,7 +101,13 @@ void loop() {
   mjs_lmic_wait_for_txcomplete();
 
   // Schedule sleep
-  unsigned long sleepDuration = UPDATE_INTERVAL - (millis() - startMillis);
+  unsigned long msPast = millis() - startMillis;
+  unsigned long sleepDuration = UPDATE_INTERVAL;
+  if (msPast < sleepDuration)
+    sleepDuration -= msPast;
+  else
+    sleepDuration = 0;
+
   if (DEBUG) {
     Serial.print(F("Sleeping for "));
     Serial.print(sleepDuration);
