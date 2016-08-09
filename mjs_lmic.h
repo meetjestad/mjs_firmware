@@ -133,15 +133,9 @@ void mjs_lmic_setup() {
   // Check whether the layout of the EEPROM is correct
   uint32_t hash = eeprom_read_dword(0x00);
   if (hash != EEPROM_LAYOUT_MAGIC) {
-    Serial.begin(9600);
     Serial.println(F("EEPROM is not correctly configured"));
 
-    while (true) {
-//      digitalWrite(LED_PIN, HIGH);
-//      delay(250);
-//      digitalWrite(LED_PIN, LOW);
-//      delay(250);
-    }
+    while (true) /* nothing */;
   }
 
   // Write OSCCAL from EEPROM
