@@ -11,7 +11,7 @@
    - SparkFunHTU21D: https://github.com/sparkfun/SparkFun_HTU21D_Breakout_Arduino_Library
    - NeoGPS: https://github.com/SlashDevin/NeoGPS
    - Adafruit_SleepyDog: https://github.com/adafruit/Adafruit_SleepyDog
-   - lmic: https://github.com/matthijskooijman/arduino-lmic
+   - lmic (mjs-specific fork): https://github.com/meetjestad/arduino-lmic
  *******************************************************************************/
 
 // include external libraries
