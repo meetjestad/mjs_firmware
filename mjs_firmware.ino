@@ -28,7 +28,7 @@ boolean const DEBUG = true;
 #include "mjs_lmic.h"
 
 // setup GPS module
-byte const GPS_PIN = 8;
+uint8_t const GPS_PIN = 8;
 SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
 NMEAGPS gps;
 
@@ -38,20 +38,20 @@ float temperature;
 float humidity;
 
 // define various pins
-byte const SW_GND_PIN = 20;
-byte const LED_PIN = 21;
+uint8_t const SW_GND_PIN = 20;
+uint8_t const LED_PIN = 21;
 
 // setup timing variables
-long const UPDATE_INTERVAL = 900000;
-int const GPS_TIMEOUT = 60000;
+uint32_t const UPDATE_INTERVAL = 900000;
+uint16_t const GPS_TIMEOUT = 60000;
 // Update GPS position after transmitting this many updates
-int const GPS_UPDATE_RATIO = 24*4;
+uint16_t const GPS_UPDATE_RATIO = 24*4;
 
-unsigned long lastUpdateTime = 0;
-unsigned long updatesBeforeGpsUpdate = 0;
+uint32_t lastUpdateTime = 0;
+uint32_t updatesBeforeGpsUpdate = 0;
 gps_fix gps_data;
 
-int const LORA_PORT = 10;
+uint8_t const LORA_PORT = 10;
 
 void setup() {
   // when in debugging mode start serial connection
@@ -122,7 +122,7 @@ void loop() {
 
 void doSleep(uint32_t time) {
   while (time > 0) {
-    int slept;
+    uint16_t slept;
     if (time < 8000)
       slept = Watchdog.sleep(time);
     else
@@ -151,7 +151,7 @@ void dumpData() {
   Serial.flush();
 }
 
-boolean getPosition()
+void getPosition()
 {
   memset(&gps_data, 0, sizeof(gps_data));
 

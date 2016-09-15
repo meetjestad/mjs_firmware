@@ -133,7 +133,7 @@ void onEvent (ev_t ev) {
 void mjs_lmic_setup() {
   // Check whether the layout of the EEPROM is correct
   uint32_t hash = eeprom_read_dword(0x00);
-  if (hash != EEPROM_LAYOUT_MAGIC && has != EEPROM_LAYOUT_MAGIC_OLD) {
+  if (hash != EEPROM_LAYOUT_MAGIC && hash != EEPROM_LAYOUT_MAGIC_OLD) {
     Serial.println(F("EEPROM is not correctly configured"));
 
     while (true) /* nothing */;
