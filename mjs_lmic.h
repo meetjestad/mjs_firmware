@@ -9,7 +9,8 @@
 
  *******************************************************************************/
 
-#define EEPROM_LAYOUT_MAGIC 0x2a60af86 // Just a random number, stored little-endian
+#define EEPROM_LAYOUT_MAGIC_OLD 0x2a60af86 // Just a random number, stored little-endian
+#define EEPROM_LAYOUT_MAGIC 0x2a60af87 // Just a random number, stored little-endian
 #define EEPROM_LAYOUT_MAGIC_START 0x00 // 4 bytes
 #define EEPROM_OSCCAL_START (EEPROM_LAYOUT_MAGIC_START + 4) // 1 byte
 #define EEPROM_APP_EUI_START (EEPROM_OSCCAL_START + 1)
@@ -132,16 +133,20 @@ void onEvent (ev_t ev) {
 void mjs_lmic_setup() {
   // Check whether the layout of the EEPROM is correct
   uint32_t hash = eeprom_read_dword(0x00);
-  if (hash != EEPROM_LAYOUT_MAGIC) {
+  if (hash != EEPROM_LAYOUT_MAGIC && has != EEPROM_LAYOUT_MAGIC_OLD) {
     Serial.println(F("EEPROM is not correctly configured"));
 
     while (true) /* nothing */;
   }
 
-  // Write OSCCAL from EEPROM
-  uint8_t osccal_byte = eeprom_read_byte((uint8_t*)EEPROM_OSCCAL_START);
-  if (osccal_byte != 0xff) {
-    OSCCAL = osccal_byte;
+  // Old magic indicates the bootloader did not handle OSCCAL yet, so we
+  // need to load it from EEPROM
+  if (hash == EEPROM_LAYOUT_MAGIC_OLD) {
+    // Write OSCCAL from EEPROM
+    uint8_t osccal_byte = eeprom_read_byte((uint8_t*)EEPROM_OSCCAL_START);
+    if (osccal_byte != 0xff) {
+      OSCCAL = osccal_byte;
+    }
   }
 
   // LMIC init
