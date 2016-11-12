@@ -69,6 +69,7 @@ void setup() {
   digitalWrite(SW_GND_PIN, LOW);
 
   // blink 'hello'
+  pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
   delay(500);
   digitalWrite(LED_PIN, LOW);
