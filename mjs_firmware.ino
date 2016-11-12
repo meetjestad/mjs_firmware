@@ -21,6 +21,7 @@
 #include <SoftwareSerial.h>
 #include <NMEAGPS.h>
 #include <Adafruit_SleepyDog.h>
+#include <avr/power.h>
 
 // set run mode
 boolean const DEBUG = true;
@@ -121,6 +122,9 @@ void loop() {
 }
 
 void doSleep(uint32_t time) {
+  ADCSRA &= ~(1 << ADEN);
+  power_adc_disable();
+
   while (time > 0) {
     uint16_t slept;
     if (time < 8000)
@@ -132,6 +136,9 @@ void doSleep(uint32_t time) {
       return;
     time -= slept;
   }
+
+  power_adc_enable();
+  ADCSRA |= (1 << ADEN);
 }
 
 void dumpData() {
