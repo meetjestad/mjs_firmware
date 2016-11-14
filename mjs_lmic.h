@@ -176,8 +176,8 @@ void mjs_lmic_setup() {
   // frequency and support for class B is spotty and untested, so this
   // frequency is not configured here.
 
-  // Let LMIC compensate for +/- 1% clock error
-  LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
+  // Let LMIC compensate for +/- 2% clock error
+  LMIC_setClockError(MAX_CLOCK_ERROR * 2 / 100);
 }
 
 void mjs_lmic_wait_for_txcomplete() {
