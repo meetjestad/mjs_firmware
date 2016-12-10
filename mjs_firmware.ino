@@ -134,7 +134,7 @@ void doSleep(uint32_t time) {
       slept = Watchdog.sleep(8000);
 
     if (slept >= time)
-      return;
+      break;
     time -= slept;
   }
 
