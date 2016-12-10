@@ -176,7 +176,7 @@ void getPosition()
 }
 
 void queueData() {
-  uint8_t data[9];
+  uint8_t data[10];
 
   // pack geoposition
   uint32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
@@ -198,8 +198,36 @@ void queueData() {
   data[7] |= hum16 >> 8 & 0x0F;
   data[8] = hum16 & 0xFF;
 
+  // Encoded in units of 10mv, starting at 1V
+  uint8_t vcc = (readVcc()-1000)/10;
+  data[9] = vcc;
+
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, data, sizeof(data), 0);
   if(DEBUG) Serial.println(F("Packet queued"));
 }
 
+long readVcc() {
+  // Read 1.1V reference against AVcc
+  // set the reference to Vcc and the measurement to the internal 1.1V reference
+  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+
+  // Wait a bit before measuring to stabilize the reference (or
+  // something).  The datasheet suggests that the first reading after
+  // changing the reference is inaccurate, but just doing a dummy read
+  // still gives unstable values, but this delay helps. For some reason
+  // analogRead (which can also change the reference) does not need
+  // this.
+  delay(2);
+
+  ADCSRA |= _BV(ADSC); // Start conversion
+  while (bit_is_set(ADCSRA,ADSC)); // measuring
+
+  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH
+  uint8_t high = ADCH; // unlocks both
+
+  uint16_t result = (high<<8) | low;
+
+  result = 1125300L / result; // Calculate Vcc (in mV); 1125300 = 1.1*1023*1000
+  return result; // Vcc in millivolts
+}
