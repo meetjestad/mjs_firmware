@@ -26,6 +26,14 @@
 // set run mode
 boolean const DEBUG = true;
 
+// This sets the ratio of the battery voltage divider attached to A0,
+// below works for 100k to ground and 470k to the battery. A setting of
+// 0.0 means not to measure the voltage. On first generation boards, this
+// should only be enabled when the AREF pin of the microcontroller was
+// disconnected.
+float const BATTERY_DIVIDER_RATIO = 0.0;
+//float const BATTERY_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
+
 #include "mjs_lmic.h"
 
 // setup GPS module
@@ -176,7 +184,8 @@ void getPosition()
 }
 
 void queueData() {
-  uint8_t data[10];
+  uint8_t length = (BATTERY_DIVIDER_RATIO ? 11 : 10);
+  uint8_t data[length];
 
   // pack geoposition
   uint32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
@@ -201,6 +210,14 @@ void queueData() {
   // Encoded in units of 10mv, starting at 1V
   uint8_t vcc = (readVcc()-1000)/10;
   data[9] = vcc;
+
+  if (BATTERY_DIVIDER_RATIO) {
+    analogReference(INTERNAL);
+    uint16_t reading = analogRead(A0);
+    // Encoded in units of 20mv, starting at 1V
+    uint8_t batt = (uint32_t)(50*BATTERY_DIVIDER_RATIO*1.1)*reading/1023 - 50;
+    data[10] = batt;
+  }
 
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, data, sizeof(data), 0);
