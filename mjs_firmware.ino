@@ -53,7 +53,7 @@ uint8_t const LED_PIN = 21;
 
 // setup timing variables
 uint32_t const UPDATE_INTERVAL = 900000;
-uint16_t const GPS_TIMEOUT = 60000;
+uint16_t const GPS_TIMEOUT = 120000;
 // Update GPS position after transmitting this many updates
 uint16_t const GPS_UPDATE_RATIO = 24*4;
 
