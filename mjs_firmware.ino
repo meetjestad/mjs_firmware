@@ -22,6 +22,7 @@
 #include <NMEAGPS.h>
 #include <Adafruit_SleepyDog.h>
 #include <avr/power.h>
+#include <util/atomic.h>
 
 // set run mode
 boolean const DEBUG = true;
@@ -140,6 +141,18 @@ void doSleep(uint32_t time) {
       slept = Watchdog.sleep(time);
     else
       slept = Watchdog.sleep(8000);
+
+    // Update the millis() and micros() counters, so duty cycle
+    // calculations remain correct. This is a hack, fiddling with
+    // Arduino's internal variables, which is needed until
+    // https://github.com/arduino/Arduino/issues/5087 is fixed.
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+      extern volatile unsigned long timer0_millis;
+      extern volatile unsigned long timer0_overflow_count;
+      timer0_millis += slept;
+      // timer0 uses a /64 prescaler and overflows every 256 timer ticks
+      timer0_overflow_count += microsecondsToClockCycles((uint32_t)slept * 1000) / (64 * 256);
+    }
 
     if (slept >= time)
       break;
