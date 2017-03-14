@@ -130,6 +130,16 @@ void onEvent (ev_t ev) {
   }
 }
 
+void printHex(__FlashStringHelper *prefix, uint8_t *buf, size_t len) {
+  Serial.print(prefix);
+  for (size_t i = 0; i < len; ++i) {
+    if (buf[i] < 0x10)
+      Serial.write('0');
+    Serial.print(buf[i], HEX);
+  }
+  Serial.println();
+}
+
 void mjs_lmic_setup() {
   // Check whether the layout of the EEPROM is correct
   uint32_t hash = eeprom_read_dword(0x00);
@@ -148,6 +158,14 @@ void mjs_lmic_setup() {
       OSCCAL = osccal_byte;
     }
   }
+
+  char buf[EEPROM_APP_KEY_LEN];
+  os_getArtEui(buf);
+  printHex(F("App EUI: "), buf, EEPROM_APP_EUI_LEN);
+  os_getDevEui(buf);
+  printHex(F("Dev EUI: "), buf, EEPROM_DEV_EUI_LEN);
+  os_getDevKey(buf);
+  printHex(F("App Key: "), buf, EEPROM_APP_KEY_LEN);
 
   // LMIC init
   os_init();
