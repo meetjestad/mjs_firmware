@@ -86,6 +86,15 @@ void setup() {
   // start communication to sensors
   htu.begin();
   gpsSerial.begin(9600);
+
+  if (DEBUG) {
+    temperature = htu.readTemperature();
+    humidity = htu.readHumidity();
+    Serial.print("Temperature: ");
+    Serial.println(temperature);
+    Serial.print("Humidity: ");
+    Serial.println(humidity);
+  }
 }
 
 void loop() {
