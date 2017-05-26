@@ -130,7 +130,7 @@ void onEvent (ev_t ev) {
   }
 }
 
-void printHex(__FlashStringHelper *prefix, uint8_t *buf, size_t len) {
+void printHex(const __FlashStringHelper *prefix, uint8_t *buf, size_t len) {
   Serial.print(prefix);
   for (size_t i = 0; i < len; ++i) {
     if (buf[i] < 0x10)
@@ -159,7 +159,7 @@ void mjs_lmic_setup() {
     }
   }
 
-  char buf[EEPROM_APP_KEY_LEN];
+  uint8_t buf[EEPROM_APP_KEY_LEN];
   os_getArtEui(buf);
   printHex(F("App EUI: "), buf, EEPROM_APP_EUI_LEN);
   os_getDevEui(buf);

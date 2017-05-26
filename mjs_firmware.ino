@@ -236,9 +236,11 @@ void queueData() {
   if (BATTERY_DIVIDER_RATIO) {
     analogReference(INTERNAL);
     uint16_t reading = analogRead(A0);
-    // Encoded in units of 20mv, starting at 1V
-    uint8_t batt = (uint32_t)(50*BATTERY_DIVIDER_RATIO*1.1)*reading/1023 - 50;
-    data[10] = batt;
+    // Encoded in units of 20mv
+    uint8_t batt = (uint32_t)(50*BATTERY_DIVIDER_RATIO*1.1)*reading/1023;
+    // Shift down, zero means 1V now
+    if (batt >= 50)
+      data[10] = batt - 50;
   }
 
   // Prepare upstream data transmission at the next possible time.
