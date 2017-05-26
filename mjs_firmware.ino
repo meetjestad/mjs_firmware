@@ -23,6 +23,7 @@
 #include <Adafruit_SleepyDog.h>
 #include <avr/power.h>
 #include <util/atomic.h>
+#include "bitstream.h"
 
 // set run mode
 boolean const DEBUG = true;
@@ -208,30 +209,25 @@ void getPosition()
 void queueData() {
   uint8_t length = (BATTERY_DIVIDER_RATIO ? 11 : 10);
   uint8_t data[length];
+  BitStream packet(data, sizeof(data));
 
   // pack geoposition
-  uint32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
-  data[0] = lat24 >> 16 & 0xFF;
-  data[1] = lat24 >> 8 & 0xFF;
-  data[2] = lat24 & 0xFF;
+  int32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
+  packet.append(lat24, 24);
 
-  uint32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
-  data[3] = lng24 >> 16 & 0xFF;
-  data[4] = lng24 >> 8 & 0xFF;
-  data[5] = lng24 & 0xFF;
+  int32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
+  packet.append(lng24, 24);
 
   // pack temperature and humidity
-  int16_t tmp16 = (uint16_t)(temperature * 16) << 4;
-  data[6] = tmp16 >> 8 & 0xFF;
-  data[7] = tmp16 & 0xF0;
+  int16_t tmp16 = (uint16_t)(temperature * 16);
+  packet.append(tmp16, 12);
 
   int16_t hum16 = (uint16_t)(humidity * 16);
-  data[7] |= hum16 >> 8 & 0x0F;
-  data[8] = hum16 & 0xFF;
+  packet.append(hum16, 12);
 
   // Encoded in units of 10mv, starting at 1V
   uint8_t vcc = (readVcc()-1000)/10;
-  data[9] = vcc;
+  packet.append(vcc, 8);
 
   if (BATTERY_DIVIDER_RATIO) {
     analogReference(INTERNAL);
@@ -240,11 +236,11 @@ void queueData() {
     uint8_t batt = (uint32_t)(50*BATTERY_DIVIDER_RATIO*1.1)*reading/1023;
     // Shift down, zero means 1V now
     if (batt >= 50)
-      data[10] = batt - 50;
+      packet.append(batt - 50, 8);
   }
 
   // Prepare upstream data transmission at the next possible time.
-  LMIC_setTxData2(LORA_PORT, data, sizeof(data), 0);
+  LMIC_setTxData2(LORA_PORT, packet.data(), packet.byte_size(), 0);
   if(DEBUG) Serial.println(F("Packet queued"));
 }
 
