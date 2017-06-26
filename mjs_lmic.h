@@ -80,11 +80,6 @@ void onEvent (ev_t ev) {
         break;
       case EV_JOINED:
         Serial.println(F("EV_JOINED"));
-        // TTN uses SF9 for its RX2 window. This is configured in the
-        // join accept message, but the LMIC library does not currently
-        // process this part of the join accept yet (see Arduino-LMIC issue #20).
-        LMIC.dn2Dr = DR_SF9;
-
         // Disable link check validation
         LMIC_setLinkCheckMode(0);
 
