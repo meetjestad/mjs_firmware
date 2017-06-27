@@ -76,6 +76,9 @@ void onEvent (ev_t ev) {
         Serial.println(F("EV_BEACON_TRACKED"));
         break;
       case EV_JOINING:
+        // Let join start at SF9, since that's what we'll be using for
+        // transmission anyway
+        LMIC_setDrTxpow(DR_SF9, 14);
         Serial.println(F("EV_JOINING"));
         break;
       case EV_JOINED:
