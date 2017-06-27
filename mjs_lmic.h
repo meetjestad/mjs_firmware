@@ -60,7 +60,7 @@ void onEvent (ev_t ev) {
     waitingForEvent = (ev_t)0;
 
   if (DEBUG) {
-    Serial.print(os_getTime());
+    Serial.print((uint32_t)os_getTime());
     Serial.print(": ");
     switch (ev) {
       case EV_SCAN_TIMEOUT:
