@@ -106,6 +106,12 @@ void loop() {
   if (updatesBeforeGpsUpdate == 0) {
     getPosition();
     updatesBeforeGpsUpdate = GPS_UPDATE_RATIO;
+    // Use the lowest datarate, to maximize range. This helps for
+    // debugging, since range problems can be more easily distinguished
+    // from other problems (lockups, downlink problems, etc).
+    LMIC_setDrTxpow(DR_SF12, 14);
+  } else {
+    LMIC_setDrTxpow(DR_SF9, 14);
   }
   updatesBeforeGpsUpdate--;
 
