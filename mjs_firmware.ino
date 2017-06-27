@@ -116,6 +116,11 @@ void loop() {
   if (DEBUG)
     dumpData();
 
+  // Work around a race condition in LMIC, that is greatly amplified
+  // if we sleep without calling runloop and then queue data
+  // See https://github.com/lmic-lib/lmic/issues/3
+  os_runloop_once();
+
   // We can now send the data
   queueData();
 
