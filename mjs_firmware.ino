@@ -222,12 +222,20 @@ void queueData() {
   uint8_t data[length];
   BitStream packet(data, sizeof(data));
 
-  // pack geoposition
-  int32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
-  packet.append(lat24, 24);
+  if (gps_data.valid.location) {
+    // pack geoposition
+    int32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
+    packet.append(lat24, 24);
 
-  int32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
-  packet.append(lng24, 24);
+    int32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
+    packet.append(lng24, 24);
+  } else {
+    // Append zeroes if the location is unknown (but do not use the
+    // lat/lon from gps_data, since they might still contain old
+    // values).
+    packet.append(0, 24);
+    packet.append(0, 24);
+  }
 
   // pack temperature and humidity
   int16_t tmp16 = (uint16_t)(temperature * 16);
