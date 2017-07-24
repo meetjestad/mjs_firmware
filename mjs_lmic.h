@@ -85,12 +85,6 @@ void onEvent (ev_t ev) {
         Serial.println(F("EV_JOINED"));
         // Disable link check validation
         LMIC_setLinkCheckMode(0);
-
-        // Use a fixed data rate of SF9 (not sure if tx power is
-        // actually used). SF9 is the lowest datarate that (withing the
-        // TTN fair-usage-policy of 30 seconds of airtime per day)
-        // allows us to send at least 4 packets every hour.
-        LMIC_setDrTxpow(DR_SF9, 14);
         break;
       case EV_RFU1:
         Serial.println(F("EV_RFU1"));
