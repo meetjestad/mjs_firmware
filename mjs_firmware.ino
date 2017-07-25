@@ -25,6 +25,11 @@
 #include <util/atomic.h>
 #include "bitstream.h"
 
+// Firmware version to send. Should be incremented on release (i.e. when
+// signficant changes happen, and/or a version is deployed onto
+// production nodes). This value should correspond to a release tag.
+const uint8_t FIRMWARE_VERSION = 0;
+
 // set run mode
 boolean const DEBUG = true;
 
@@ -62,7 +67,7 @@ uint32_t lastUpdateTime = 0;
 uint32_t updatesBeforeGpsUpdate = 0;
 gps_fix gps_data;
 
-uint8_t const LORA_PORT = 10;
+uint8_t const LORA_PORT = 11;
 
 void setup() {
   // when in debugging mode start serial connection
@@ -218,10 +223,11 @@ void getPosition()
 }
 
 void queueData() {
-  uint8_t length = (BATTERY_DIVIDER_RATIO ? 11 : 10);
+  uint8_t length = (BATTERY_DIVIDER_RATIO ? 12 : 11);
   uint8_t data[length];
   BitStream packet(data, sizeof(data));
 
+  packet.append(FIRMWARE_VERSION, 8);
   if (gps_data.valid.location) {
     // pack geoposition
     int32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
