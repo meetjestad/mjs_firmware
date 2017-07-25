@@ -28,7 +28,7 @@
 // Firmware version to send. Should be incremented on release (i.e. when
 // signficant changes happen, and/or a version is deployed onto
 // production nodes). This value should correspond to a release tag.
-const uint8_t FIRMWARE_VERSION = 0;
+const uint8_t FIRMWARE_VERSION = 1;
 
 // set run mode
 boolean const DEBUG = true;
