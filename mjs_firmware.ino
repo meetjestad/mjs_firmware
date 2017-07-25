@@ -190,7 +190,7 @@ void doSleep(uint32_t time) {
 }
 
 void dumpData() {
-  if (gps_data.valid.location) {
+  if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
     Serial.print(F("lat/lon: "));
     Serial.print(gps_data.latitudeL()/10000000.0, 6);
     Serial.print(F(","));
@@ -219,7 +219,7 @@ void getPosition()
   while (millis() - startTime < GPS_TIMEOUT && valid < 10) {
     if (gps.available(gpsSerial)) {
       gps_data = gps.read();
-      if (gps_data.valid.location)
+      if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD)
         valid++;
     }
   }
@@ -232,7 +232,7 @@ void queueData() {
   BitStream packet(data, sizeof(data));
 
   packet.append(FIRMWARE_VERSION, 8);
-  if (gps_data.valid.location) {
+  if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
     // pack geoposition
     int32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
     packet.append(lat24, 24);
