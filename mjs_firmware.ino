@@ -215,9 +215,13 @@ void getPosition()
     Serial.println(F("Waiting for GPS..."));
 
   unsigned long startTime = millis();
-  while (millis() - startTime < GPS_TIMEOUT && !gps_data.valid.location) {
-    if (gps.available(gpsSerial))
+  int valid = 0;
+  while (millis() - startTime < GPS_TIMEOUT && valid < 10) {
+    if (gps.available(gpsSerial)) {
       gps_data = gps.read();
+      if (gps_data.valid.location)
+        valid++;
+    }
   }
   digitalWrite(SW_GND_PIN, LOW);
 }
