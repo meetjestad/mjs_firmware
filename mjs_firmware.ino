@@ -196,7 +196,7 @@ void dumpData() {
     Serial.print(F(","));
     Serial.println(gps_data.longitudeL()/10000000.0, 6);
   } else {
-    Serial.println(F("No GPS (fix) found: check wiring"));
+    Serial.println(F("No GPS fix"));
   }
 
   Serial.print(F("tmp/hum: "));
@@ -209,6 +209,7 @@ void dumpData() {
 void getPosition()
 {
   memset(&gps_data, 0, sizeof(gps_data));
+  gps.statistics.init();
 
   digitalWrite(SW_GND_PIN, HIGH);
   if (DEBUG)
@@ -228,6 +229,9 @@ void getPosition()
     }
   }
   digitalWrite(SW_GND_PIN, LOW);
+
+  if (gps.statistics.ok == 0)
+    Serial.println("No GPS data received, check wiring");
 }
 
 void queueData() {
