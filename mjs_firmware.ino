@@ -221,6 +221,10 @@ void getPosition()
       gps_data = gps.read();
       if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD)
         valid++;
+      if (gps_data.valid.satellites) {
+        Serial.print("Satellites: ");
+        Serial.println(gps_data.satellites);
+      }
     }
   }
   digitalWrite(SW_GND_PIN, LOW);
