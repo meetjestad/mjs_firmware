@@ -238,10 +238,10 @@ void queueData() {
   }
 
   // pack temperature and humidity
-  int16_t tmp16 = (uint16_t)(temperature * 16);
+  int16_t tmp16 = temperature * 16;
   packet.append(tmp16, 12);
 
-  int16_t hum16 = (uint16_t)(humidity * 16);
+  int16_t hum16 = humidity * 16;
   packet.append(hum16, 12);
 
   // Encoded in units of 10mv, starting at 1V
