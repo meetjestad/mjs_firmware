@@ -169,6 +169,7 @@ void dumpDatarate(uint8_t datarate) {
 
 static NeoGPS::Location_t last_measurement_loc;
 static uint32_t last_measurement_time;
+static bool last_was_sent = false;
 
 void loop() {
   showState();
@@ -195,13 +196,17 @@ void loop() {
       uint32_t dtime = now - last_measurement_time;
       float dist = gps_data.location.DistanceKm(last_measurement_loc);
 
-      if (measurements.isEmpty() || (dtime >= MIN_MEASUREMENT_TIME && dist >= MIN_MEASUREMENT_DISTANCE)) {
-        digitalWrite(LED_BUILTIN, true);
+      if (measurements.isEmpty() || dtime >= MIN_MEASUREMENT_TIME && dist >= MIN_MEASUREMENT_DISTANCE) {
         addMeasurement(gps_data);
         last_measurement_time = now;
         last_measurement_loc = gps_data.location;
+        last_was_sent = false;
 
         dumpData();
+      }
+
+      if (!last_was_sent) {
+        digitalWrite(LED_BUILTIN, true);
 
         // If there is no TX in progress, queue the packet
         if ((LMIC.opmode & OP_TXRXPEND) == 0) {
@@ -212,6 +217,7 @@ void loop() {
 
           if ((LMIC.opmode & OP_TXRXPEND) != 0) {
             setState(State::TRANSMITTING);
+            last_was_sent = true;
           } else {
             Serial.println("No airtime");
             // No airtime available yet, clear packet again
