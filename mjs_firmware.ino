@@ -15,7 +15,7 @@
  *******************************************************************************/
 
 #define DEBUG true
-#define WITH_LUX
+#define WITH_LUX true
 
 // include external libraries
 #include <SPI.h>
@@ -151,8 +151,23 @@ void setup()
     Serial.println(temperature);
     Serial.print(F("Humidity: "));
     Serial.println(humidity);
-    Serial.print(F("Lux [lx]: "));
+    Serial.print(F("Lux: "));
     Serial.println(lux);
+    Serial.print(F("BatRat: "));
+    if (BATTERY_DIVIDER_RATIO)
+    {
+      Serial.println(F("on"));
+    }
+    else
+    {
+      Serial.println(F("off"));
+    }
+    Serial.print(F("WithLux: "));
+#ifdef WITH_LUX
+    Serial.println(F("on"));
+#else
+    Serial.println(F("off"));
+#endif
     Serial.flush();
   }
 }
@@ -333,6 +348,9 @@ void getPosition()
 void queueData()
 {
   uint8_t length = (BATTERY_DIVIDER_RATIO ? 12 : 11);
+#ifdef WITH_LUX
+  length += 2;
+#endif
   uint8_t data[length];
   BitStream packet(data, sizeof(data));
 
@@ -392,6 +410,13 @@ void queueData()
   if (DEBUG)
   {
     Serial.println(F("Packet queued"));
+    for (int i = 0; i < packet.byte_size(); i++)
+    {
+      Serial.print(packet.data()[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+    Serial.flush();
   }
 }
 
@@ -437,6 +462,8 @@ void setupLux()
 long readLux()
 {
   long result = 0;
+  bool done = false;
+  int which = 0;
 
   // Set the Reference Resistor to 100K
   pinMode(LUX_HIGH_PIN, INPUT);
@@ -447,9 +474,11 @@ long readLux()
   if (read_low < 1000)
   {
     result = long(lx_conv_low * read_low);
-    goto finish;
+    done = true;
+    which = 1;
   }
 
+  if (!done) 
   {
     // Set the Reference Resistor to 10K parallel with 100K = 9.091K
     pinMode(LUX_HIGH_PIN, OUTPUT);
@@ -461,10 +490,12 @@ long readLux()
     if (read_high < 1000)
     {
       result = long(lx_conv_high * read_high);
-      goto finish;
+      done = true;
+      which = 2;
     }
   }
 
+  if (!done) 
   {
     // Set the Reference Resistor to 10K parallel with 100K = 9.091K
     pinMode(LUX_HIGH_PIN, OUTPUT);
@@ -474,15 +505,17 @@ long readLux()
     uint16_t read_bat = analogRead(A2);
     float conv_bat = (lx_conv_high * vcc) / reference_voltage;
     result = long(conv_bat * read_bat);
+    which = 3;
   }
-finish:
+
   // Set the Reference Resistor to 100K to draw the least current
   pinMode(LUX_HIGH_PIN, INPUT);
   if (DEBUG)
   {
     Serial.print(F("Lux_reading : "));
     Serial.print(result);
-    Serial.println(F(" lx"));
+    Serial.print(F(" lx, which="));
+    Serial.println(which);
   }
   return result;
 }
