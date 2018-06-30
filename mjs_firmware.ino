@@ -349,7 +349,20 @@ void queueData() {
 
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, packet.data(), packet.byte_size(), 0);
-  if(DEBUG) Serial.println(F("Packet queued"));
+  if (DEBUG)
+  {
+    Serial.println(F("Packet queued"));
+    uint8_t *data = packet.data();
+    for (int i = 0; i < packet.byte_size(); i++)
+    {
+      if (data[i] < 0x10)
+        Serial.write('0');
+      Serial.print(data[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+    Serial.flush();
+  }
 }
 
 uint16_t readVcc()
