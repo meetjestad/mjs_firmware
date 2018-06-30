@@ -96,9 +96,9 @@ void setup() {
   if (DEBUG) {
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
-    Serial.print("Temperature: ");
+    Serial.print(F("Temperature: "));
     Serial.println(temperature);
-    Serial.print("Humidity: ");
+    Serial.print(F("Humidity: "));
     Serial.println(humidity);
   }
 }
@@ -223,7 +223,7 @@ void getPosition()
       if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD)
         valid++;
       if (gps_data.valid.satellites) {
-        Serial.print("Satellites: ");
+        Serial.print(F("Satellites: "));
         Serial.println(gps_data.satellites);
       }
     }
@@ -231,7 +231,7 @@ void getPosition()
   digitalWrite(SW_GND_PIN, LOW);
 
   if (gps.statistics.ok == 0)
-    Serial.println("No GPS data received, check wiring");
+    Serial.println(F("No GPS data received, check wiring"));
 }
 
 void queueData() {
