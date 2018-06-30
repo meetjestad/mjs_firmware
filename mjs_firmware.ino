@@ -48,8 +48,10 @@ uint8_t const GPS_PIN = 8;
 SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
 NMEAGPS gps;
 
-// setup temperature and humidity sensor
+// Sensor object
 HTU21D htu;
+
+// Most recently read values
 float temperature;
 float humidity;
 
