@@ -291,7 +291,8 @@ void queueData() {
   if(DEBUG) Serial.println(F("Packet queued"));
 }
 
-long readVcc() {
+uint16_t readVcc()
+{
   // Read 1.1V reference against AVcc
   // set the reference to Vcc and the measurement to the internal 1.1V reference
   ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
