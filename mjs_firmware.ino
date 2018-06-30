@@ -148,6 +148,10 @@ void setup() {
     Serial.print(F("Lux: "));
     Serial.println(lux);
 #endif // WITH_LUX
+    if (BATTERY_DIVIDER_RATIO) {
+      Serial.print(F("Battery Divider Ratio: "));
+      Serial.print(BATTERY_DIVIDER_RATIO);
+    }
   }
 }
 
