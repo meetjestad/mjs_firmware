@@ -152,6 +152,7 @@ void setup() {
       Serial.print(F("Battery Divider Ratio: "));
       Serial.print(BATTERY_DIVIDER_RATIO);
     }
+    Serial.flush();
   }
 }
 
