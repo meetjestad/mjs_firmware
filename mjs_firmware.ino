@@ -72,7 +72,7 @@ uint16_t vcc = 0;
 // Define global lux conversion factors variables
 float lx_conv_high;
 float lx_conv_low;
-long lux = -1;
+long lux = 0;
 
 // setup GPS module
 uint8_t const GPS_PIN = 8;
@@ -436,7 +436,7 @@ void setupLux()
 
 long readLux()
 {
-  long result = -1;
+  long result = 0;
 
   // Set the Reference Resistor to 100K
   pinMode(LUX_HIGH_PIN, INPUT);
