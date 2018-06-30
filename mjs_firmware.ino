@@ -54,6 +54,7 @@ HTU21D htu;
 // Most recently read values
 float temperature;
 float humidity;
+uint16_t vcc = 0;
 
 // define various pins
 uint8_t const SW_GND_PIN = 20;
@@ -98,10 +99,13 @@ void setup() {
   if (DEBUG) {
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
+    vcc = readVcc();
     Serial.print(F("Temperature: "));
     Serial.println(temperature);
     Serial.print(F("Humidity: "));
     Serial.println(humidity);
+    Serial.print(F("Vcc: "));
+    Serial.println(vcc);
   }
 }
 
@@ -125,6 +129,7 @@ void loop() {
   // Activate and read our sensors
   temperature = htu.readTemperature();
   humidity = htu.readHumidity();
+  vcc = readVcc();
 
   if (DEBUG)
     dumpData();
@@ -201,10 +206,13 @@ void dumpData() {
     Serial.println(F("No GPS fix"));
   }
 
-  Serial.print(F("tmp/hum: "));
+  Serial.print(F("temp="));
   Serial.print(temperature, 1);
-  Serial.print(F(","));
-  Serial.println(humidity, 1);
+  Serial.print(F(", hum="));
+  Serial.print(humidity, 1);
+  Serial.print(F(", vcc="));
+  Serial.print(vcc, 1);
+  Serial.println();
   Serial.flush();
 }
 
@@ -265,8 +273,8 @@ void queueData() {
   packet.append(hum16, 12);
 
   // Encoded in units of 10mv, starting at 1V
-  uint8_t vcc = (readVcc()-1000)/10;
-  packet.append(vcc, 8);
+  uint8_t vcc8 = (vcc - 1000) / 10;
+  packet.append(vcc8, 8);
 
   if (BATTERY_DIVIDER_RATIO) {
     analogReference(INTERNAL);
