@@ -82,7 +82,9 @@ HTU21D htu;
 float temperature;
 float humidity;
 uint16_t vcc = 0;
+#ifdef WITH_LUX
 uint16_t lux = 0;
+#endif
 
 // define various pins
 uint8_t const SW_GND_PIN = 20;
@@ -137,7 +139,9 @@ void setup() {
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
     vcc = readVcc();
+#ifdef WITH_LUX
     lux = readLux();
+#endif
     Serial.print(F("Temperature: "));
     Serial.println(temperature);
     Serial.print(F("Humidity: "));
@@ -391,6 +395,7 @@ uint16_t readVcc()
   return result; // Vcc in millivolts
 }
 
+#ifdef WITH_LUX
 long readLux()
 {
   long result = 0;
@@ -443,3 +448,5 @@ long readLux()
   }
   return result;
 }
+
+#endif
