@@ -32,7 +32,7 @@
 // Firmware version to send. Should be incremented on release (i.e. when
 // signficant changes happen, and/or a version is deployed onto
 // production nodes). This value should correspond to a release tag.
-const uint8_t FIRMWARE_VERSION = 2;
+const uint8_t FIRMWARE_VERSION = 255;
 
 // This sets the ratio of the battery voltage divider attached to A0,
 // below works for 100k to ground and 470k to the battery. A setting of
@@ -44,6 +44,13 @@ float const BATTERY_DIVIDER_RATIO = 0.0;
 
 // Enable this define when a light sensor is attached
 //#define WITH_LUX
+
+//#define WITH_SDS011
+//#define WITH_HPMA115S0_XXX
+
+#ifdef WITH_HPMA115S0_XXX
+#include <hpma115S0.h>
+#endif
 
 // These values define the sensitivity and calibration of the PAR / Lux
 // measurement.
@@ -75,6 +82,23 @@ uint8_t const GPS_PIN = 8;
 SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
 NMEAGPS gps;
 
+#ifdef WITH_SDS011
+uint8_t const SDS_RX = A0;
+uint8_t const SDS_TX = A1;
+SoftwareSerial sdsSerial(SDS_RX, SDS_TX);
+#endif
+
+#ifdef WITH_HPMA115S0_XXX
+uint8_t const HPMA_RX = 6;
+uint8_t const HPMA_TX = 7;
+SoftwareSerial hpmaSerial(HPMA_RX, HPMA_TX);
+HPMA115S0 hpma115S0(hpmaSerial);
+#endif
+
+#if defined(WITH_HPMA115S0_XXX) && defined(WITH_SDS011)
+#error "Both SDS and HPMA not supported"
+#endif
+
 // Sensor object
 HTU21D htu;
 
@@ -84,6 +108,12 @@ float humidity;
 uint16_t vcc = 0;
 #ifdef WITH_LUX
 uint16_t lux = 0;
+#endif
+
+#if defined(WITH_SDS011) || defined(WITH_HPMA115S0_XXX)
+unsigned int Pm25 = 0;
+unsigned int Pm10 = 0;
+int  PmStatus = -1;
 #endif
 
 // define various pins
@@ -134,6 +164,16 @@ void setup() {
   // start communication to sensors
   htu.begin();
   gpsSerial.begin(9600);
+#ifdef WITH_SDS011
+  sdsSerial.begin(9600);
+#endif
+#ifdef WITH_HPMA115S0_XXX
+  hpmaSerial.begin(9600);
+  // TODO: Is this delay really needed? Taken from example.
+  delay(5000);
+  hpma115S0.Init();
+  hpma115S0.StartParticleMeasurement();
+#endif
 
   if (DEBUG) {
     temperature = htu.readTemperature();
@@ -141,6 +181,12 @@ void setup() {
     vcc = readVcc();
 #ifdef WITH_LUX
     lux = readLux();
+#endif
+#ifdef WITH_SDS011
+    readSds();
+#endif
+#ifdef WITH_HPMA115S0_XXX
+    readHpma();
 #endif
     Serial.print(F("Temperature: "));
     Serial.println(temperature);
@@ -152,6 +198,18 @@ void setup() {
     Serial.print(F("Lux: "));
     Serial.println(lux);
 #endif // WITH_LUX
+#if defined(WITH_SDS011) || defined(WITH_HPMA115S0_XXX)
+    if (PmStatus == 0) {
+      Serial.print(F("PM10: "));
+      Serial.print(Pm10);
+      Serial.print(F(" PM2.5: "));
+      Serial.println(Pm25);
+    } else {
+      Serial.print("Error reading dust sensor: ");
+      Serial.println(PmStatus);
+    }
+#endif
+
     if (BATTERY_DIVIDER_RATIO) {
       Serial.print(F("Battery Divider Ratio: "));
       Serial.print(BATTERY_DIVIDER_RATIO);
@@ -184,6 +242,12 @@ void loop() {
 #ifdef WITH_LUX
   lux = readLux();
 #endif // WITH_LUX
+#ifdef WITH_SDS011
+  readSds();
+#endif
+#ifdef WITH_HPMA115S0_XXX
+  readHpma();
+#endif
 
   if (DEBUG)
     dumpData();
@@ -278,6 +342,7 @@ void getPosition()
 {
   memset(&gps_data, 0, sizeof(gps_data));
   gps.statistics.init();
+  gpsSerial.listen();
 
   digitalWrite(SW_GND_PIN, HIGH);
   if (DEBUG)
@@ -306,6 +371,9 @@ void queueData() {
   uint8_t length = (BATTERY_DIVIDER_RATIO ? 12 : 11);
 #ifdef WITH_LUX
   length += 2;
+#endif
+#if defined(WITH_SDS011) || defined(WITH_HPMA115S0_XXX)
+  length += 4;
 #endif
   uint8_t data[length];
   BitStream packet(data, sizeof(data));
@@ -339,6 +407,16 @@ void queueData() {
 
 #ifdef WITH_LUX
   packet.append(lux, 16);
+#endif
+#if defined(WITH_SDS011) || defined(WITH_HPMA115S0_XXX)
+  if (PmStatus != 0) {
+    // Read error
+    packet.append(0xffff, 16);
+    packet.append(0xffff, 16);
+  } else {
+    packet.append(Pm25, 16);
+    packet.append(Pm10, 16);
+  }
 #endif
 
   if (BATTERY_DIVIDER_RATIO) {
@@ -449,4 +527,102 @@ long readLux()
   return result;
 }
 
+#endif
+
+#ifdef WITH_SDS011
+void readSds()
+{
+  uint8_t mData = 0;
+  uint8_t i = 0;
+  uint8_t mPkt[10] = {0};
+  uint8_t mCheck = 0;
+
+  PmStatus = -1;  // Default: no data availabe ...
+  //fpm10 = -99.0;
+  //fpm25 = -99.0;
+
+  // Flush any old data
+  while (sdsSerial.read() >= 0) /* nothing */;
+  sdsSerial.listen();
+
+  // TODO: Timeout
+  while (PmStatus < 0)
+  {
+    // from www.inovafitness.com
+    // packet format: AA C0 PM25_Low PM25_High PM10_Low PM10_High 0 0 CRC AB
+
+    while (!sdsSerial.available()) /* nothing */;
+    mData = sdsSerial.read();
+
+    if (mData == 0xAA) //head1 ok
+    {
+      mPkt[0] =  mData;
+      while (!sdsSerial.available()) /* nothing */;
+      mData = sdsSerial.read();
+      if (mData == 0xc0) //head2 ok
+      {
+        mPkt[1] =  mData;
+        mCheck = 0;
+        for (i = 0; i < 6; i++) //data recv and crc calc
+        {
+          while (!sdsSerial.available()) /* nothing */;
+          mPkt[i + 2] = sdsSerial.read();
+          mCheck += mPkt[i + 2];
+        }
+        while (!sdsSerial.available()) /* nothing */;
+        mPkt[8] = sdsSerial.read();
+        while (!sdsSerial.available()) /* nothing */;
+        mPkt[9] = sdsSerial.read();
+        if (mCheck == mPkt[8]) //crc ok
+        {
+          Pm25 = (uint16_t)mPkt[2] | (uint16_t)(mPkt[3] << 8);
+          Pm10 = (uint16_t)mPkt[4] | (uint16_t)(mPkt[5] << 8);
+          // Convert from tenths of μg/m³ to integer μg/m³
+          Pm25 /= 10;
+          Pm10 /= 10;
+
+          /*
+          fpm25 = Pm25 / 10.0;
+          fpm10 = Pm10 / 10.0;
+
+          if (fpm25 > 999)
+            fpm25 = 999;
+          if (fpm10 > 999)
+            fpm10 = 999;
+          */
+          PmStatus = 0; // Data is ok
+
+        } // CRC ??
+        else {
+          Serial.println("CRC != OK,  ");
+        }
+      } // Head2 ??
+      else {
+        Serial.println("mData != 0xc0 ");
+      }
+
+    } // Head1 ??
+    else {
+      Serial.println("mData != 0xAA ");
+    }
+    // TODO: This *disables* listening on the SDS serial port, otherwise
+    // messages sent from it will interrupt our sleep and cut our send
+    // interval short. Since we can't *disable* SoftwareSerial, we
+    // instead enable another one, which as a side effect disables all
+    // others. It might be better to disable messages from the SDS
+    // instead.
+    gpsSerial.listen();
+  }
+}
+#endif
+
+#ifdef WITH_HPMA115S0_XXX
+void readHpma() {
+  hpmaSerial.listen();
+  if (hpma115S0.ReadParticleMeasurement(&Pm25, &Pm10)) {
+    PmStatus = 0;
+  } else {
+    PmStatus = 1;
+  }
+}
 #endif
