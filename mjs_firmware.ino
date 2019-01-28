@@ -334,6 +334,17 @@ void dumpData() {
   Serial.print(F(", lux="));
   Serial.print(lux);
 #endif // WITH_LUX
+#if defined(WITH_SDS011) || defined(WITH_HPMA115S0_XXX)
+  if (PmStatus == 0) {
+    Serial.print(F(", PM10: "));
+    Serial.print(Pm10);
+    Serial.print(F(", PM2.5: "));
+    Serial.println(Pm25);
+  } else {
+    Serial.print("Error reading dust sensor: ");
+    Serial.println(PmStatus);
+  }
+#endif
   Serial.println();
   Serial.flush();
 }
