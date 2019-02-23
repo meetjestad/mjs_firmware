@@ -85,6 +85,8 @@ uint16_t vcc = 0;
 #ifdef WITH_LUX
 uint16_t lux = 0;
 #endif
+int32_t lat24 = 0;
+int32_t lng24 = 0;
 
 // define various pins
 uint8_t const SW_GND_PIN = 20;
@@ -94,11 +96,16 @@ uint8_t const LUX_HIGH_PIN = 5;
 // setup timing variables
 uint32_t const UPDATE_INTERVAL = 900000;
 uint32_t const GPS_TIMEOUT = 120000;
+
 // Update GPS position after transmitting this many updates
 uint16_t const GPS_UPDATE_RATIO = 24*4;
 
+// Reset cached GPS position after this many failed fix attempts
+uint16_t const GPS_MAX_FAILED_FIX_ATTEMPTS = 7;
+
 uint32_t lastUpdateTime = 0;
 uint32_t updatesBeforeGpsUpdate = 0;
+uint32_t gpsFailedFixAttempts = 0;
 gps_fix gps_data;
 
 #ifdef WITH_LUX
@@ -163,7 +170,7 @@ void setup() {
 void loop() {
   // We need to calculate how long we should sleep, so we need to know how long we were awake
   unsigned long startMillis = millis();
-
+  
   // Activate GPS every now and then to update our position
   if (updatesBeforeGpsUpdate == 0) {
     getPosition();
@@ -175,6 +182,7 @@ void loop() {
   } else {
     LMIC_setDrTxpow(DR_SF9, 14);
   }
+  
   updatesBeforeGpsUpdate--;
 
   // Activate and read our sensors
@@ -270,12 +278,14 @@ void dumpData() {
   Serial.print(F(", lux="));
   Serial.print(lux);
 #endif // WITH_LUX
+  Serial.print(F(", gpsFailedFixAttempts="));
+  Serial.print(gpsFailedFixAttempts);
   Serial.println();
   Serial.flush();
 }
 
 void getPosition()
-{
+{ 
   memset(&gps_data, 0, sizeof(gps_data));
   gps.statistics.init();
 
@@ -288,8 +298,12 @@ void getPosition()
   while (millis() - startTime < GPS_TIMEOUT && valid < 10) {
     if (gps.available(gpsSerial)) {
       gps_data = gps.read();
-      if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD)
+      if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
         valid++;
+        // Valid GPS data has been aquired, update geo variables.
+        lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
+        lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
+      }
       if (gps_data.valid.satellites) {
         Serial.print(F("Satellites: "));
         Serial.println(gps_data.satellites);
@@ -297,6 +311,21 @@ void getPosition()
     }
   }
   digitalWrite(SW_GND_PIN, LOW);
+
+  if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
+    // GPS acquisition was successful, so reset GPS fail counter.
+    gpsFailedFixAttempts = 0;
+  } else {
+    // GPS acquisition failed, so increase GPS fail counter by 1.
+    gpsFailedFixAttempts++;
+  }
+
+  if (gpsFailedFixAttempts >= GPS_MAX_FAILED_FIX_ATTEMPTS) {
+    // Max failed GPS fix attempts reached. Setting coordinates to zero.
+    lat24 = 0;
+    lng24 = 0;
+    Serial.println("Max failed GPS fix attempts reached. Setting coordinates to zero.");
+  }
 
   if (gps.statistics.ok == 0)
     Serial.println(F("No GPS data received, check wiring"));
@@ -311,20 +340,9 @@ void queueData() {
   BitStream packet(data, sizeof(data));
 
   packet.append(FIRMWARE_VERSION, 8);
-  if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
-    // pack geoposition
-    int32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
-    packet.append(lat24, 24);
 
-    int32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
-    packet.append(lng24, 24);
-  } else {
-    // Append zeroes if the location is unknown (but do not use the
-    // lat/lon from gps_data, since they might still contain old
-    // values).
-    packet.append(0, 24);
-    packet.append(0, 24);
-  }
+  packet.append(lat24, 24);
+  packet.append(lng24, 24);
 
   // pack temperature and humidity
   int16_t tmp16 = temperature * 16;
