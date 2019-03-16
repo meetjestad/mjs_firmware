@@ -72,8 +72,6 @@ float const reference_voltage_internal = 1137.0;
 
 // setup GPS module
 uint8_t const GPS_PIN = 8;
-SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
-NMEAGPS gps;
 
 // Sensor object
 HTU21D htu;
@@ -135,7 +133,7 @@ void setup() {
 
   // start communication to sensors
   htu.begin();
-  gpsSerial.begin(9600);
+
 
   if (DEBUG) {
     temperature = htu.readTemperature();
@@ -278,7 +276,13 @@ void dumpData() {
 
 void getPosition()
 {
+  // Setup GPS
+  SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
+  NMEAGPS gps;
+
+  gpsSerial.begin(9600);
   memset(&gps_data, 0, sizeof(gps_data));
+  gps.reset();
   gps.statistics.init();
 
   digitalWrite(SW_GND_PIN, HIGH);
@@ -308,6 +312,8 @@ void getPosition()
 
   if (gps.statistics.ok == 0)
     Serial.println(F("No GPS data received, check wiring"));
+
+  gpsSerial.end();
 }
 
 void queueData() {
