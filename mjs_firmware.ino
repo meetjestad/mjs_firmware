@@ -72,8 +72,6 @@ float const reference_voltage_internal = 1137.0;
 
 // setup GPS module
 uint8_t const GPS_PIN = 8;
-SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
-NMEAGPS gps;
 
 // Sensor object
 HTU21D htu;
@@ -85,6 +83,8 @@ uint16_t vcc = 0;
 #ifdef WITH_LUX
 uint16_t lux = 0;
 #endif
+int32_t lat24 = 0;
+int32_t lng24 = 0;
 
 // define various pins
 uint8_t const SW_GND_PIN = 20;
@@ -133,7 +133,7 @@ void setup() {
 
   // start communication to sensors
   htu.begin();
-  gpsSerial.begin(9600);
+
 
   if (DEBUG) {
     temperature = htu.readTemperature();
@@ -276,7 +276,13 @@ void dumpData() {
 
 void getPosition()
 {
+  // Setup GPS
+  SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
+  NMEAGPS gps;
+
+  gpsSerial.begin(9600);
   memset(&gps_data, 0, sizeof(gps_data));
+  gps.reset();
   gps.statistics.init();
 
   digitalWrite(SW_GND_PIN, HIGH);
@@ -288,8 +294,14 @@ void getPosition()
   while (millis() - startTime < GPS_TIMEOUT && valid < 10) {
     if (gps.available(gpsSerial)) {
       gps_data = gps.read();
-      if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD)
+      if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
         valid++;
+        lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
+        lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
+      } else {
+        lat24 = 0;
+        lng24 = 0;
+      }
       if (gps_data.valid.satellites) {
         Serial.print(F("Satellites: "));
         Serial.println(gps_data.satellites);
@@ -300,6 +312,8 @@ void getPosition()
 
   if (gps.statistics.ok == 0)
     Serial.println(F("No GPS data received, check wiring"));
+
+  gpsSerial.end();
 }
 
 void queueData() {
@@ -311,20 +325,10 @@ void queueData() {
   BitStream packet(data, sizeof(data));
 
   packet.append(FIRMWARE_VERSION, 8);
-  if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
-    // pack geoposition
-    int32_t lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
-    packet.append(lat24, 24);
 
-    int32_t lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
-    packet.append(lng24, 24);
-  } else {
-    // Append zeroes if the location is unknown (but do not use the
-    // lat/lon from gps_data, since they might still contain old
-    // values).
-    packet.append(0, 24);
-    packet.append(0, 24);
-  }
+  packet.append(lat24, 24);
+  packet.append(lng24, 24);
+
 
   // pack temperature and humidity
   int16_t tmp16 = temperature * 16;
