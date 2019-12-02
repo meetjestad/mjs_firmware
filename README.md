@@ -125,3 +125,8 @@ encryption keys to be preprogrammed into EEPROM, see
 https://github.com/meetjestad/mjs_programmer for the tool that is used
 for this. All microcontrollers used in the workshops of the Meetjestad
 project, are already preprogrammed and labeled with their identifier.
+
+History of changes
+------------------
+For a list of notable changes in versioned firmware releases, see the
+[CHANGELOG.md][] file. For detailed changes, see the git history.
