@@ -474,8 +474,6 @@ uint32_t readLux()
     // Set the Reference Resistor to R11 parallel with R12 for more range
     pinMode(LUX_HIGH_PIN, OUTPUT);
     digitalWrite(LUX_HIGH_PIN, LOW);
-    // Read the value of Analog input 2 against the internal reference
-    analogReference(INTERNAL);
     raw_adc = analogRead(A2);
     // Check if read_high has an overflow
     if (raw_adc < 1000)
