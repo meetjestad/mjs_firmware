@@ -484,9 +484,6 @@ long readLux()
       result = long(lx_conv_high * reference_voltage_internal * read_high);
       range = 2;
     } else {
-      // Set the Reference Resistor to 10K parallel with 100K = 9.091K
-      pinMode(LUX_HIGH_PIN, OUTPUT);
-      digitalWrite(LUX_HIGH_PIN, LOW);
       // Read the value of Analog input 2 against the battery voltage
       analogReference(DEFAULT);
       uint16_t read_highest = analogRead(A2);
