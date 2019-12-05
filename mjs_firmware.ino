@@ -464,6 +464,9 @@ uint32_t readLux()
   pinMode(LUX_HIGH_PIN, INPUT);
   // Read the value of Analog input 2 against the internal reference
   analogReference(INTERNAL);
+  // Throw away the first reference, in case the internal reference
+  // still needs to start up and stabilize (datasheet recommendation)
+  analogRead(A2);
   uint16_t raw_adc = analogRead(A2);
   // Check if read_low has an overflow
   if (raw_adc < 1000)
