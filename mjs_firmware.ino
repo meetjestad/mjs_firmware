@@ -463,11 +463,11 @@ long readLux()
   pinMode(LUX_HIGH_PIN, INPUT);
   // Read the value of Analog input 2 against the internal reference
   analogReference(INTERNAL);
-  uint16_t read_low = analogRead(A2);
+  uint16_t raw_adc = analogRead(A2);
   // Check if read_low has an overflow
-  if (read_low < 1000)
+  if (raw_adc < 1000)
   {
-    result = long(lx_conv_low * reference_voltage_internal * read_low);
+    result = long(lx_conv_low * reference_voltage_internal * raw_adc);
     range = 1;
   } else {
     // Set the Reference Resistor to R11 parallel with R12 for more range
@@ -475,17 +475,17 @@ long readLux()
     digitalWrite(LUX_HIGH_PIN, LOW);
     // Read the value of Analog input 2 against the internal reference
     analogReference(INTERNAL);
-    uint16_t read_high = analogRead(A2);
+    raw_adc = analogRead(A2);
     // Check if read_high has an overflow
-    if (read_high < 1000)
+    if (raw_adc < 1000)
     {
-      result = long(lx_conv_high * reference_voltage_internal * read_high);
+      result = long(lx_conv_high * reference_voltage_internal * raw_adc);
       range = 2;
     } else {
       // Read the value of Analog input 2 against VCC for more range
       analogReference(DEFAULT);
-      uint16_t read_highest = analogRead(A2);
-      result = long(lx_conv_high * vcc * read_highest);
+      raw_adc = analogRead(A2);
+      result = long(lx_conv_high * vcc * raw_adc);
       range = 3;
     }
   }
@@ -497,7 +497,9 @@ long readLux()
     Serial.print(F("Lux_reading : "));
     Serial.print(result);
     Serial.print(F(" lx, range="));
-    Serial.println(range);
+    Serial.print(range);
+    Serial.print(F(", adc="));
+    Serial.println(raw_adc);
   }
   return result;
 }
