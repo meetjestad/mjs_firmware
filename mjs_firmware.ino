@@ -32,7 +32,8 @@
 // Firmware version to send. Should be incremented on release (i.e. when
 // signficant changes happen, and/or a version is deployed onto
 // production nodes). This value should correspond to a release tag.
-const uint8_t FIRMWARE_VERSION = 3;
+// For untagged/experimental versions, use 255.
+const uint8_t FIRMWARE_VERSION = 255;
 
 // This sets the ratio of the battery voltage divider attached to A0,
 // below works for 100k to ground and 470k to the battery. A setting of
