@@ -82,7 +82,7 @@ float temperature;
 float humidity;
 uint16_t vcc = 0;
 #ifdef WITH_LUX
-uint16_t lux = 0;
+uint32_t lux = 0;
 #endif
 int32_t lat24 = 0;
 int32_t lng24 = 0;
@@ -372,7 +372,8 @@ void queueData() {
   packet.append(vcc8, 8);
 
 #ifdef WITH_LUX
-  packet.append(lux, 16);
+  // Chop off 2 bits to allow up to 256k lux (maximum solar power should be around 128k)
+  packet.append(lux >> 2, 16);
 #endif
 
   if (BATTERY_DIVIDER_RATIO) {
