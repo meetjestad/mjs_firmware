@@ -478,7 +478,20 @@ uint32_t readLux()
     pinMode(LUX_HIGH_PIN, OUTPUT);
     digitalWrite(LUX_HIGH_PIN, LOW);
 
-    // Read the value of Analog input 2 against the internal reference
+    // An external capacitor can be added to charge the ADC internal 14pF
+    // without dropping significant voltage, improving read values at low
+    // values. If the capacitance is 1000x as big as the internal
+    // capacitance, the drop should be limited to 1 ADC value, so 10nF
+    // should be fine, but in practice still shows ±50 ADC counts of
+    // deviation. Using 100nF reduces this to ±15, so we're using that.
+    // Possible there are more sources of noise than just the internal
+    // capacitance.
+    //
+    // When switching from R12 to R11+R12, the capacitor has to charge
+    // through R11+R12, which has an RC time of 100nF x 9k = 900μs. To be
+    // sure, we wait for 3ms.
+    delay(3);
+
     raw_adc = analogRead(A2);
     // Check if read_high has an overflow
     if (raw_adc < 1000)
