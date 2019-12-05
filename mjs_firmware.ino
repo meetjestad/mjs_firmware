@@ -457,7 +457,6 @@ uint16_t readVcc()
 long readLux()
 {
   long result = 0;
-  bool done = false;
   int range = 0;
 
   // Set the Reference Resistor to just R12
@@ -469,7 +468,6 @@ long readLux()
   if (read_low < 1000)
   {
     result = long(lx_conv_low * reference_voltage_internal * read_low);
-    done = true;
     range = 1;
   } else {
     // Set the Reference Resistor to R11 parallel with R12 for more range
