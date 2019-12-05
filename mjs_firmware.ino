@@ -98,15 +98,23 @@ uint32_t const GPS_TIMEOUT = 120000;
 // Update GPS position after transmitting this many updates
 uint16_t const GPS_UPDATE_RATIO = 24*4;
 
+// When sending extra data, use this many bits to specify the size
+// (allows up to 32-bit values)
+uint8_t const EXTRA_SIZE_BITS = 5;
+
+enum {
+  FLAG_WITH_LUX = (1 << 7),
+  FLAG_WITH_PM = (1 << 6),
+  FLAG_WITH_BATTERY = (1 << 5),
+  // bits 4:1 reserved for future additions
+  FLAG_WITH_EXTRA = (1 << 0),
+};
+
 uint32_t lastUpdateTime = 0;
 uint32_t updatesBeforeGpsUpdate = 0;
 gps_fix gps_data;
 
-#ifdef WITH_LUX
-uint8_t const LORA_PORT = 12;
-#else
-uint8_t const LORA_PORT = 11;
-#endif
+uint8_t const LORA_PORT = 13;
 
 void setup() {
   // when in debugging mode start serial connection
@@ -318,12 +326,33 @@ void getPosition()
 }
 
 void queueData() {
-  uint8_t length = (BATTERY_DIVIDER_RATIO ? 12 : 11);
+  uint8_t length = 12;
+  uint8_t flags = 0;
+
+  if (BATTERY_DIVIDER_RATIO) {
+    flags |= FLAG_WITH_BATTERY;
+    length += 1;
+  }
+
 #ifdef WITH_LUX
+  flags |= FLAG_WITH_LUX;
   length += 2;
 #endif
+
+  // To add extra data, uncomment the section below and change the number
+  // of extra data bits to what you are actualy using. Additionally,
+  // uncomment a bit of code further down that actually adds the data to
+  // the packet, and also shows how the number of bits is counted.
+  /*
+  const uint8_t extra_bits = EXTRA_SIZE_BITS+10+EXTRA_SIZE_BITS+1;
+  length += (extra_bits + 7)/8;
+  flags |= FLAG_WITH_EXTRA;
+  */
+
   uint8_t data[length];
   BitStream packet(data, sizeof(data));
+
+  packet.append(flags, 8);
 
   packet.append(FIRMWARE_VERSION, 8);
 
@@ -354,7 +383,31 @@ void queueData() {
     // Shift down, zero means 1V now
     if (batt >= 50)
       packet.append(batt - 50, 8);
+    else
+      packet.append(0, 8);
   }
+  // Uncomment this section to add extra data. The example below adds a
+  // 10-bit value followed by a 1 bit value. Each extra field is
+  // transmitted as a 6-bit size field, followed by a (size+1)-bits value
+  // field.
+  //
+  // Do not forget to uncomment the block around `extra_bits` a bit
+  // further up as well.
+  /*
+  // This uses some random values, replace these variables by your values.
+  uint16_t extra_adc = random(1 << 10);
+  uint16_t extra_bit = random(1 << 1);
+  // First field is 10 bits, subtract one to allow a size of 1-32
+  // (rather than 0-31)
+  packet.append(10-1, EXTRA_SIZE_BITS);
+  packet.append(extra_adc, 10);
+  // Second field is 1 bit
+  packet.append(1-1, EXTRA_SIZE_BITS);
+  packet.append(extra_bit, 1);
+  // Fill any remaining bits (from rounding up to whole bytes) with 1's,
+  // so they cannot be a valid field.
+  packet.append(0xff, packet.free_bits());
+  */
 
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, packet.data(), packet.byte_size(), 0);
