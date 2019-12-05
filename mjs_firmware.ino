@@ -460,7 +460,7 @@ long readLux()
   bool done = false;
   int range = 0;
 
-  // Set the Reference Resistor to 100K
+  // Set the Reference Resistor to just R12
   pinMode(LUX_HIGH_PIN, INPUT);
   // Read the value of Analog input 2 against the internal reference
   analogReference(INTERNAL);
@@ -472,7 +472,7 @@ long readLux()
     done = true;
     range = 1;
   } else {
-    // Set the Reference Resistor to 10K parallel with 100K = 9.091K
+    // Set the Reference Resistor to R11 parallel with R12 for more range
     pinMode(LUX_HIGH_PIN, OUTPUT);
     digitalWrite(LUX_HIGH_PIN, LOW);
 
@@ -483,7 +483,7 @@ long readLux()
       result = long(lx_conv_high * reference_voltage_internal * read_high);
       range = 2;
     } else {
-      // Read the value of Analog input 2 against the battery voltage
+      // Read the value of Analog input 2 against VCC for more range
       analogReference(DEFAULT);
       uint16_t read_highest = analogRead(A2);
       result = long(lx_conv_high * vcc * read_highest);
