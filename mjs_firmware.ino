@@ -299,7 +299,7 @@ void getPosition()
     Serial.println(F("Waiting for GPS..."));
 
   unsigned long startTime = millis();
-  int valid = 0;
+  uint8_t valid = 0;
   while (millis() - startTime < GPS_TIMEOUT && valid < 10) {
     if (gps.available(gpsSerial)) {
       gps_data = gps.read();
@@ -455,10 +455,10 @@ uint16_t readVcc()
 }
 
 #ifdef WITH_LUX
-long readLux()
+uint32_t readLux()
 {
-  long result = 0;
-  int range = 0;
+  uint32_t result = 0;
+  uint8_t range = 0;
 
   // Set the Reference Resistor to just R12
   pinMode(LUX_HIGH_PIN, INPUT);
@@ -468,7 +468,7 @@ long readLux()
   // Check if read_low has an overflow
   if (raw_adc < 1000)
   {
-    result = long(lx_conv_low * reference_voltage_internal * raw_adc);
+    result = uint32_t(lx_conv_low * reference_voltage_internal * raw_adc);
     range = 1;
   } else {
     // Set the Reference Resistor to R11 parallel with R12 for more range
@@ -480,13 +480,13 @@ long readLux()
     // Check if read_high has an overflow
     if (raw_adc < 1000)
     {
-      result = long(lx_conv_high * reference_voltage_internal * raw_adc);
+      result = uint32_t(lx_conv_high * reference_voltage_internal * raw_adc);
       range = 2;
     } else {
       // Read the value of Analog input 2 against VCC for more range
       analogReference(DEFAULT);
       raw_adc = analogRead(A2);
-      result = long(lx_conv_high * vcc * raw_adc);
+      result = uint32_t(lx_conv_high * vcc * raw_adc);
       range = 3;
     }
   }
