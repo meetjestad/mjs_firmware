@@ -190,11 +190,17 @@ void mjs_lmic_setup() {
   LMIC_setClockError(MAX_CLOCK_ERROR * 2 / 100);
 }
 
-void mjs_lmic_wait_for_txcomplete() {
+void mjs_lmic_wait_for_txcomplete(void (*on_tx_start)()) {
   waitingForEvent = EV_TXCOMPLETE;
   uint32_t start = millis();
-  while(waitingForEvent && millis() - start < TX_TIMEOUT)
+  while(waitingForEvent && millis() - start < TX_TIMEOUT) {
     os_runloop_once();
+    if (on_tx_start && LMIC.opmode & OP_TXRXPEND) {
+      // Once tx starts, call the callback once
+      on_tx_start();
+      on_tx_start = nullptr;
+    }
+  }
   if (DEBUG) {
     if (waitingForEvent)
       Serial.println(F("Transmit timeout"));

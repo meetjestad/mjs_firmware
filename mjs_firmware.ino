@@ -81,6 +81,7 @@ HTU21D htu;
 float temperature;
 float humidity;
 uint16_t vcc = 0;
+uint16_t vcc_during_tx = 0;
 int32_t lat24 = 0;
 int32_t lng24 = 0;
 
@@ -197,6 +198,11 @@ void setup() {
   }
 }
 
+void onTxStart() {
+  delay(10);
+  vcc_during_tx = readVcc();
+}
+
 void loop() {
   // We need to calculate how long we should sleep, so we need to know how long we were awake
   unsigned long startMillis = millis();
@@ -234,7 +240,7 @@ void loop() {
   // We can now send the data
   queueData();
 
-  mjs_lmic_wait_for_txcomplete();
+  mjs_lmic_wait_for_txcomplete(onTxStart);
 
   // Schedule sleep
   unsigned long msPast = millis() - startMillis;
@@ -304,6 +310,8 @@ void dumpData() {
   Serial.print(humidity, 1);
   Serial.print(F(", vcc="));
   Serial.print(vcc, 1);
+  Serial.print(F(", vcc_during_tx="));
+  Serial.print(vcc_during_tx, 1);
 #ifdef WITH_LUX
   Serial.print(F(", lux1="));
   Serial.print(luxmeters[0].lux);
@@ -374,7 +382,7 @@ void queueData() {
   // of extra data bits to what you are actualy using. Additionally,
   // uncomment a bit of code further down that actually adds the data to
   // the packet, and also shows how the number of bits is counted.
-  const uint8_t extra_bits = (EXTRA_SIZE_BITS+18+EXTRA_SIZE_BITS+10+EXTRA_SIZE_BITS+2)*2;
+  const uint8_t extra_bits = (EXTRA_SIZE_BITS+18+EXTRA_SIZE_BITS+10+EXTRA_SIZE_BITS+2)*2+EXTRA_SIZE_BITS+9;
   length += (extra_bits + 7)/8;
   flags |= FLAG_WITH_EXTRA;
 
@@ -436,6 +444,10 @@ void queueData() {
     packet.append(2-1, EXTRA_SIZE_BITS);
     packet.append(luxmeters[i].range, 2);
   }
+  // Send vcc during tx
+  packet.append(9-1, EXTRA_SIZE_BITS);
+  packet.append(vcc_during_tx / 10, 9);
+
   // Fill any remaining bits (from rounding up to whole bytes) with 0's,
   // so they cannot be a valid field.
   packet.append(0xff, packet.free_bits());
