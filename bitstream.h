@@ -69,7 +69,6 @@ inline bool BitStream::append(uint32_t v, size_t bitsize) {
 
   // Do not overfow the buffer
   if (ptr >= this->buf + this->buflen) {
-    this->pos -= bitsize;
     return false;
   }
 
