@@ -295,8 +295,12 @@ void getPosition()
   gps.statistics.init();
 
   digitalWrite(SW_GND_PIN, HIGH);
+
+  // Empty serial input buffer, so only new characters are processed
+  while(Serial.read() >= 0) /* nothing */;
+
   if (DEBUG)
-    Serial.println(F("Waiting for GPS..."));
+    Serial.println(F("Waiting for GPS, send 's' to skip..."));
 
   unsigned long startTime = millis();
   uint8_t valid = 0;
@@ -316,6 +320,8 @@ void getPosition()
         Serial.println(gps_data.satellites);
       }
     }
+    if (DEBUG && tolower(Serial.read()) == 's')
+      break;
   }
   digitalWrite(SW_GND_PIN, LOW);
 
