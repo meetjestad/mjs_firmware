@@ -48,7 +48,7 @@ To set this up:
     "Sketchbook location" at the top. By default, the sketchbook is a
     directory called "Arduino" in your documents directory or homedir.
  3. Download the zip bundle:
-    http://www.meetjestad.net/meten/files/arduino-bundle-v3.zip
+    http://www.meetjestad.net/meten/files/arduino-bundle-v4.zip
  4. Unpack the zipfile into your sketchbook directory. The zipfile contains
     a directory called "hardware" and "libraries", which may already
     exist inside your sketchbook. If so, you should merge their
