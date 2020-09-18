@@ -130,3 +130,18 @@ History of changes
 ------------------
 For a list of notable changes in versioned firmware releases, see the
 [CHANGELOG.md][] file. For detailed changes, see the git history.
+
+
+License
+-------
+All content in this repository is licensed under the ["Beluki"
+license][license]:
+
+> Permission is hereby granted, free of charge, to anyone obtaining a copy of
+> this document and accompanying files, to do whatever they want with them
+> without any restriction, including, but not limited to, copying, modification
+> and redistribution.
+>
+> NO WARRANTY OF ANY KIND IS PROVIDED.
+
+[license]: https://github.com/Beluki/License/blob/master/Documentation/License
