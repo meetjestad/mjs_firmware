@@ -41,7 +41,7 @@ void os_getDevEui (uint8_t* buf) {
 }
 
 void os_getDevKey (uint8_t* buf) {
-  for (byte i = 0; i < EEPROM_APP_KEY_START; i++) {
+  for (byte i = 0; i < EEPROM_APP_KEY_LEN; i++) {
     buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_KEY_START + i);
   }
 }
