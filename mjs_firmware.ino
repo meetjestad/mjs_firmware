@@ -18,11 +18,15 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <SparkFunHTU21D.h>
-#include <SoftwareSerial.h>
+#if defined(ARDUINO_MJS_V1)
+  #include <SoftwareSerial.h>
+  #include <Adafruit_SleepyDog.h>
+  #include <avr/power.h>
+  #include <util/atomic.h>
+#elif defined(ARDUINO_ARCH_STM32L0)
+  #include "STM32L0.h"
+#endif
 #include <NMEAGPS.h>
-#include <Adafruit_SleepyDog.h>
-#include <avr/power.h>
-#include <util/atomic.h>
 
 #define DEBUG true
 #include "bitstream.h"
@@ -35,6 +39,8 @@
 // For untagged/experimental versions, use 255.
 const uint8_t FIRMWARE_VERSION = 255;
 
+#if defined(ARDUINO_MJS_V1)
+
 // This sets the ratio of the battery voltage divider attached to A0,
 // below works for 100k to ground and 470k to the battery. A setting of
 // 0.0 means not to measure the voltage. On first generation boards, this
@@ -43,8 +49,43 @@ const uint8_t FIRMWARE_VERSION = 255;
 float const BATTERY_DIVIDER_RATIO = 0.0;
 //float const BATTERY_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
 uint8_t const BATTERY_DIVIDER_PIN = A0;
+auto const BATTERY_DIVIDER_REF = INTERNAL;
+uint16_t const BATTERY_DIVIDER_REF_MV = 1137;
+
+// Value in mV (nominal @ 25ºC, Vcc=3.3V)
+// The temperature coefficient of the reference_voltage is neglected
+float const reference_voltage_internal = 1137.0;
+
+// setup GPS module
+uint8_t const GPS_PIN = 8;
+uint8_t const GPS_ENABLE_PIN = 20;
+
+// define various pins
+uint8_t const LED_PIN = 21;
+uint8_t const LUX_HIGH_PIN = 5;
+uint8_t const LUX_PIN = A2;
+#define GPS_USE_SOFTWARE_SERIAL
+
+#elif defined(ARDUINO_MJS2020_PROTO2)
+float const BATTERY_DIVIDER_RATIO = (1.0 + 1.0) / 1.0;
+
+uint8_t const BATTERY_DIVIDER_PIN = A0;
+auto const BATTERY_DIVIDER_REF = AR_DEFAULT;
+uint16_t const BATTERY_DIVIDER_REF_MV = 3000;
+
+#define GPS_SERIAL Serial2
+uint8_t const GPS_ENABLE_PIN = PIN_ENABLE_3V_GPS;
+
+// define various pins
+uint8_t const LED_PIN = LED_BUILTIN;
+uint8_t const LUX_HIGH_PIN = 0; // TODO: PA6 not mapped?
+uint8_t const LUX_PIN = 0; // TODO: PC3 not mapped?
+#else
+  #error "Unknown board"
+#endif
 
 // Enable this define when a light sensor is attached
+// TODO: Support on MJS2020
 //#define WITH_LUX
 
 // These values define the sensitivity and calibration of the PAR / Lux
@@ -54,9 +95,9 @@ uint8_t const BATTERY_DIVIDER_PIN = A0;
 // R11 Reference shunt resistor for high ligh levels
 //  (nominal 10K in platform Rev 2)
 // Value in Ohms
-float const R12 = 100000.0;
+float const R12 = 100000.0; // This is really R16 on MJS2020
 // Value in Ohms
-float const R11 = 10000.0;
+float const R11 = 10000.0; // This is really R15 on MJS2020
 
 // Reverse light current of the foto diode Ea at 1klx
 // uA @ 1000lx  eg 8.9 nA/lx
@@ -67,13 +108,6 @@ float const light_current = 8.9;
 float const R11_R12 = (R12 * R11) / (R12 + R11);
 float const lx_conv_high = 1.0E6 / (R11_R12 * light_current * 1024.0);
 float const lx_conv_low = 1.0E6 / (R12 * light_current * 1024.0);
-
-// Value in mV (nominal @ 25ºC, Vcc=3.3V)
-// The temperature coefficient of the reference_voltage is neglected
-float const reference_voltage_internal = 1137.0;
-
-// setup GPS module
-uint8_t const GPS_PIN = 8;
 
 // Sensor object
 HTU21D htu;
@@ -87,12 +121,6 @@ uint32_t lux = 0;
 #endif
 int32_t lat24 = 0;
 int32_t lng24 = 0;
-
-// define various pins
-uint8_t const SW_GND_PIN = 20;
-uint8_t const LED_PIN = 21;
-uint8_t const LUX_HIGH_PIN = 5;
-uint8_t const LUX_PIN = A2;
 
 // setup timing variables
 uint32_t const UPDATE_INTERVAL = 900000;
@@ -129,8 +157,8 @@ void setup() {
   mjs_lmic_setup();
 
   // setup switched ground and power down connected peripherals (GPS module)
-  pinMode(SW_GND_PIN, OUTPUT);
-  digitalWrite(SW_GND_PIN, LOW);
+  pinMode(GPS_ENABLE_PIN , OUTPUT);
+  digitalWrite(GPS_ENABLE_PIN, LOW);
 
   #ifdef WITH_LUX
   // This pin can be used in OUTPUT LOW mode to add an extra pulldown
@@ -241,6 +269,7 @@ void loop() {
 }
 
 void doSleep(uint32_t time) {
+  #if defined(__AVR__)
   ADCSRA &= ~(1 << ADEN);
   power_adc_disable();
 
@@ -270,6 +299,10 @@ void doSleep(uint32_t time) {
 
   power_adc_enable();
   ADCSRA |= (1 << ADEN);
+  #else
+  // TODO
+  delay(time);
+  #endif
 }
 
 void dumpData() {
@@ -298,16 +331,19 @@ void dumpData() {
 
 void getPosition()
 {
+  #if defined(GPS_USE_SOFTWARE_SERIAL)
   // Setup GPS
-  SoftwareSerial gpsSerial(GPS_PIN, GPS_PIN);
+  SoftwareSerial GPS_SERIAL(GPS_PIN, GPS_PIN);
+  #endif
+
   NMEAGPS gps;
 
-  gpsSerial.begin(9600);
+  GPS_SERIAL.begin(9600);
   memset(&gps_data, 0, sizeof(gps_data));
   gps.reset();
   gps.statistics.init();
 
-  digitalWrite(SW_GND_PIN, HIGH);
+  digitalWrite(GPS_ENABLE_PIN, HIGH);
 
   // Empty serial input buffer, so only new characters are processed
   while(Serial.read() >= 0) /* nothing */;
@@ -318,7 +354,7 @@ void getPosition()
   unsigned long startTime = millis();
   uint8_t valid = 0;
   while (millis() - startTime < GPS_TIMEOUT && valid < 10) {
-    if (gps.available(gpsSerial)) {
+    if (gps.available(GPS_SERIAL)) {
       gps_data = gps.read();
       if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
         valid++;
@@ -336,12 +372,12 @@ void getPosition()
     if (DEBUG && tolower(Serial.read()) == 's')
       break;
   }
-  digitalWrite(SW_GND_PIN, LOW);
+  digitalWrite(GPS_ENABLE_PIN, LOW);
 
   if (gps.statistics.ok == 0)
     Serial.println(F("No GPS data received, check wiring"));
 
-  gpsSerial.end();
+  GPS_SERIAL.end();
 }
 
 void queueData() {
@@ -396,10 +432,10 @@ void queueData() {
 #endif
 
   if (BATTERY_DIVIDER_RATIO) {
-    analogReference(INTERNAL);
+    analogReference(BATTERY_DIVIDER_REF);
     uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
     // Encoded in units of 20mv
-    uint8_t batt = (uint32_t)(50*BATTERY_DIVIDER_RATIO*1.1)*reading/1023;
+    uint8_t batt = (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/(20*1023);
     // Shift down, zero means 1V now
     if (batt >= 50)
       packet.append(batt - 50, 8);
@@ -449,6 +485,7 @@ void queueData() {
 
 uint16_t readVcc()
 {
+  #ifdef __AVR__
   // Read 1.1V reference against AVcc
   // set the reference to Vcc and the measurement to the internal 1.1V reference
   ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
@@ -471,6 +508,9 @@ uint16_t readVcc()
 
   result = 1125300L / result; // Calculate Vcc (in mV); 1125300 = 1.1*1023*1000
   return result; // Vcc in millivolts
+  #elif defined(ARDUINO_ARCH_STM32L0)
+  return STM32L0.getVDDA() * 1000;
+  #endif
 }
 
 #ifdef WITH_LUX

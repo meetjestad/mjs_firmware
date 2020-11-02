@@ -9,24 +9,65 @@
 
  *******************************************************************************/
 
-#define EEPROM_LAYOUT_MAGIC_OLD 0x2a60af86 // Just a random number, stored little-endian
-#define EEPROM_LAYOUT_MAGIC 0x2a60af87 // Just a random number, stored little-endian
-#define EEPROM_LAYOUT_MAGIC_START 0x00 // 4 bytes
-#define EEPROM_OSCCAL_START (EEPROM_LAYOUT_MAGIC_START + 4) // 1 byte
-#define EEPROM_APP_EUI_START (EEPROM_OSCCAL_START + 1)
-#define EEPROM_APP_EUI_LEN 8
-#define EEPROM_DEV_EUI_START (EEPROM_APP_EUI_START + EEPROM_APP_EUI_LEN)
-#define EEPROM_DEV_EUI_LEN 8
-#define EEPROM_APP_KEY_START (EEPROM_DEV_EUI_START + EEPROM_DEV_EUI_LEN)
-#define EEPROM_APP_KEY_LEN 16
+#if defined(ARDUINO_ARCH_STM32L0)
+  // New layout
+  // TODO: This actually more dynamic than this and has a CRC
+  // TODO: Do not hardcode this size (but EEPROM.length() is not
+  // correct, see
+  // https://github.com/GrumpyOldPizza/ArduinoCore-stm32l0/pull/166
+  #define EEPROM_SIZE 6144
+  #define EEPROM_LAYOUT_MAGIC_OLD 0x023BE0B6 // Just a random number, stored little-endian
+  #define EEPROM_LAYOUT_MAGIC 0x023BE0B6 // Just a random number, stored little-endian
+  #define EEPROM_LAYOUT_MAGIC_START (EEPROM_SIZE - EEPROM_LAYOUT_MAGIC_LEN)
+  #define EEPROM_LAYOUT_MAGIC_LEN 4
+  #define EEPROM_BLOCK_SEGMENT_FOOTER_LEN 6
+  #define EEPROM_APP_EUI_START (EEPROM_DEV_EUI_START - EEPROM_APP_EUI_LEN)
+  #define EEPROM_APP_EUI_LEN 8
+  #define EEPROM_DEV_EUI_START (EEPROM_APP_KEY_START - EEPROM_DEV_EUI_LEN)
+  #define EEPROM_DEV_EUI_LEN 8
+  #define EEPROM_APP_KEY_START (EEPROM_LAYOUT_MAGIC_START - EEPROM_BLOCK_SEGMENT_FOOTER_LEN - EEPROM_APP_KEY_LEN)
+  #define EEPROM_APP_KEY_LEN 16
+#else
+  // Original EEPROM layout for the AVR board
+  #define EEPROM_LAYOUT_MAGIC_OLD 0x2a60af86 // Just a random number, stored little-endian
+  #define EEPROM_LAYOUT_MAGIC 0x2a60af87 // Just a random number, stored little-endian
+  #define EEPROM_LAYOUT_MAGIC_START 0x00 // 4 bytes
+  #define EEPROM_OSCCAL_START (EEPROM_LAYOUT_MAGIC_START + 4) // 1 byte
+  #define EEPROM_APP_EUI_START (EEPROM_OSCCAL_START + 1)
+  #define EEPROM_APP_EUI_LEN 8
+  #define EEPROM_DEV_EUI_START (EEPROM_APP_EUI_START + EEPROM_APP_EUI_LEN)
+  #define EEPROM_DEV_EUI_LEN 8
+  #define EEPROM_APP_KEY_START (EEPROM_DEV_EUI_START + EEPROM_DEV_EUI_LEN)
+  #define EEPROM_APP_KEY_LEN 16
+#endif
 
 // Try transmission for up to 60 seconds (this includes joining)
 const uint32_t TX_TIMEOUT = 60000;
 
-#include <lmic.h>
+#if defined(ARDUINO_ARCH_STM32L0)
+#define USE_BASICMAC
+#endif
+
+#if defined(USE_BASICMAC)
+  #include <basicmac.h>
+#else
+  #include <lmic.h>
+#endif
 #include <hal/hal.h>
 #include <SPI.h>
 #include <avr/eeprom.h>
+
+#if defined(USE_BASICMAC)
+  #define os_getArtEui os_getJoinEui
+  #define os_getDevKey os_getNwkKey
+  #define onEvent onLmicEvent
+  #define os_runloop_once os_runstep
+  #define OS_INIT_ARG nullptr
+  #define DR_SF12 0
+  #define DR_SF9 3
+#else
+  #define OS_INIT_ARG
+#endif
 
 void os_getArtEui (uint8_t* buf) {
   for (byte i = 0; i < EEPROM_APP_EUI_LEN; i++) {
@@ -46,12 +87,32 @@ void os_getDevKey (uint8_t* buf) {
   }
 }
 
+#if defined(USE_BASICMAC)
+u1_t os_getRegion (void) {
+  return REGCODE_EU868;
+}
+#endif
+
+#if defined(ARDUINO_MJS_V1)
 const lmic_pinmap lmic_pins = {
   .nss = 10,
   .rxtx = LMIC_UNUSED_PIN,
   .rst = 9,
   .dio = {2, 3, 4},
 };
+#elif defined(ARDUINO_MJS2020_PROTO2)
+const lmic_pinmap lmic_pins = {
+  .nss = PIN_LORA_SS,
+  .tx = LMIC_CONTROLLED_BY_DIO2,
+  .rx = LMIC_UNUSED_PIN,
+  .rst = PIN_LORA_RST,
+  .dio = {/* DIO0 */ LMIC_UNUSED_PIN, /* DIO1 */ PIN_LORA_DIO1, /* DIO2 */ LMIC_UNUSED_PIN},
+  .busy = PIN_LORA_BUSY,
+  .tcxo = LMIC_CONTROLLED_BY_DIO3,
+};
+#else
+  #error "Unknown board"
+#endif
 
 ev_t waitingForEvent = (ev_t)0;
 
@@ -141,6 +202,7 @@ void mjs_lmic_setup() {
     while (true) /* nothing */;
   }
 
+  #if defined(EEPROM_OSCCAL_START)
   // Old magic indicates the bootloader did not handle OSCCAL yet, so we
   // need to load it from EEPROM
   if (hash == EEPROM_LAYOUT_MAGIC_OLD) {
@@ -150,6 +212,7 @@ void mjs_lmic_setup() {
       OSCCAL = osccal_byte;
     }
   }
+  #endif
 
   uint8_t buf[EEPROM_APP_KEY_LEN];
   os_getArtEui(buf);
@@ -160,12 +223,15 @@ void mjs_lmic_setup() {
   printHex(F("App Key: "), buf, EEPROM_APP_KEY_LEN);
 
   // LMIC init
-  os_init();
+  os_init(OS_INIT_ARG);
   // Reset the MAC state. Session and pending data transfers will be discarded.
   LMIC_reset();
 
+  #if defined(ARDUINO_MJS_V1)
   // Let LMIC compensate for +/- 2% clock error
+  // Not needed on MJS2020 and not supported by BasicMAC either
   LMIC_setClockError(MAX_CLOCK_ERROR * 2 / 100);
+  #endif
 }
 
 void mjs_lmic_wait_for_txcomplete() {
