@@ -42,6 +42,7 @@ const uint8_t FIRMWARE_VERSION = 255;
 // disconnected.
 float const BATTERY_DIVIDER_RATIO = 0.0;
 //float const BATTERY_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
+uint8_t const BATTERY_DIVIDER_PIN = A0;
 
 // Enable this define when a light sensor is attached
 //#define WITH_LUX
@@ -384,7 +385,7 @@ void queueData() {
 
   if (BATTERY_DIVIDER_RATIO) {
     analogReference(INTERNAL);
-    uint16_t reading = analogRead(A0);
+    uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
     // Encoded in units of 20mv
     uint8_t batt = (uint32_t)(50*BATTERY_DIVIDER_RATIO*1.1)*reading/1023;
     // Shift down, zero means 1V now
