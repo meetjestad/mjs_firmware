@@ -92,6 +92,7 @@ int32_t lng24 = 0;
 uint8_t const SW_GND_PIN = 20;
 uint8_t const LED_PIN = 21;
 uint8_t const LUX_HIGH_PIN = 5;
+uint8_t const LUX_PIN = A2;
 
 // setup timing variables
 uint32_t const UPDATE_INTERVAL = 900000;
@@ -474,7 +475,7 @@ uint32_t readLux()
   // Throw away the first reference, in case the internal reference
   // still needs to start up and stabilize (datasheet recommendation)
   analogRead(A2);
-  uint16_t raw_adc = analogRead(A2);
+  uint16_t raw_adc = analogRead(LUX_PIN);
   // Check if read_low has an overflow
   if (raw_adc < 1000)
   {
