@@ -172,6 +172,14 @@ void setup() {
     }
     Serial.flush();
   }
+
+  // Start join
+  LMIC_startJoining();
+
+  // Wait for join to complete
+  // TODO: Sleep between join attempts
+  while ((LMIC.opmode & (OP_JOINING)))
+    os_runloop_once();
 }
 
 void loop() {
