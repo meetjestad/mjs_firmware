@@ -63,6 +63,7 @@ uint8_t const GPS_ENABLE_PIN = 20;
 
 // define various pins
 uint8_t const LED_PIN = 21;
+uint8_t const LED_ON = HIGH;
 uint8_t const LUX_HIGH_PIN = 5;
 uint8_t const LUX_PIN = A2;
 #define GPS_USE_SOFTWARE_SERIAL
@@ -79,6 +80,7 @@ uint8_t const GPS_ENABLE_PIN = PIN_ENABLE_3V_GPS;
 
 // define various pins
 uint8_t const LED_PIN = LED_BUILTIN;
+uint8_t const LED_ON = LOW;
 uint8_t const LUX_HIGH_PIN = 0; // TODO: PA6 not mapped?
 uint8_t const LUX_PIN = 0; // TODO: PC3 not mapped?
 #else
@@ -190,9 +192,9 @@ void setup() {
 
   // blink 'hello'
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);
+  digitalWrite(LED_PIN, LED_ON);
   delay(500);
-  digitalWrite(LED_PIN, LOW);
+  digitalWrite(LED_PIN, !LED_ON);
 
   // start communication to sensors
   htu.begin();
