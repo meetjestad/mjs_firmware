@@ -160,6 +160,14 @@ void setup() {
   pinMode(GPS_ENABLE_PIN , OUTPUT);
   digitalWrite(GPS_ENABLE_PIN, LOW);
 
+  #if defined(ARDUINO_MJS2020_PROTO2)
+  pinMode(PIN_ENABLE_5V, OUTPUT);
+  digitalWrite(PIN_ENABLE_5V, LOW);
+
+  pinMode(PIN_ENABLE_3V_SENS, OUTPUT);
+  digitalWrite(PIN_ENABLE_3V_SENS, LOW);
+  #endif
+
   #ifdef WITH_LUX
   // This pin can be used in OUTPUT LOW mode to add an extra pulldown
   // resistor, or in INPUT mode to keep it disconnected
