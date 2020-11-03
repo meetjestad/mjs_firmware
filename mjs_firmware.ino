@@ -18,6 +18,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <SparkFunHTU21D.h>
+#include <sps30.h>
 #if defined(ARDUINO_MJS_V1)
   #include <SoftwareSerial.h>
   #include <Adafruit_SleepyDog.h>
@@ -88,6 +89,9 @@ uint8_t const LUX_PIN = 0; // TODO: PC3 not mapped?
 // TODO: Support on MJS2020
 //#define WITH_LUX
 
+// Enable this define when an SPS30 is attached over I²C
+#define WITH_SPS30_I2C
+
 // These values define the sensitivity and calibration of the PAR / Lux
 // measurement.
 // R12 Reference resistor for low light levels
@@ -121,6 +125,10 @@ uint32_t lux = 0;
 #endif
 int32_t lat24 = 0;
 int32_t lng24 = 0;
+
+#if defined(WITH_SPS30_I2C)
+struct sps30_measurement sps30_data;
+#endif
 
 // setup timing variables
 uint32_t const UPDATE_INTERVAL = 900000;
@@ -184,6 +192,10 @@ void setup() {
   // start communication to sensors
   htu.begin();
 
+  #if defined(WITH_SPS30_I2C)
+    sensirion_i2c_init();
+  #endif
+
 
   if (DEBUG) {
     temperature = htu.readTemperature();
@@ -192,6 +204,18 @@ void setup() {
 #ifdef WITH_LUX
     lux = readLux();
 #endif
+#if defined(WITH_SPS30_I2C)
+    digitalWrite(PIN_ENABLE_5V, HIGH);
+    delay(500);
+    char sps30_serial[SPS30_MAX_SERIAL_LEN];
+    int16_t ret = sps30_get_serial(sps30_serial);
+    if (ret < 0) {
+      Serial.print("Error reading SPS30 serial: ");
+      Serial.println(ret);
+    }
+    // Leave 5V on, readSps30 turns it off
+    sps30_data = readSps30();
+#endif // defined(WITH_SPS30_I2C)
     Serial.print(F("Temperature: "));
     Serial.println(temperature);
     Serial.print(F("Humidity: "));
@@ -202,6 +226,32 @@ void setup() {
     Serial.print(F("Lux: "));
     Serial.println(lux);
 #endif // WITH_LUX
+#if defined(WITH_SPS30_I2C)
+    Serial.print("SPS30 serial: ");
+    Serial.println(sps30_serial);
+    Serial.print("PM  1.0: ");
+    Serial.println(sps30_data.mc_1p0);
+    Serial.print("PM  2.5: ");
+    Serial.println(sps30_data.mc_2p5);
+    Serial.print("PM  4.0: ");
+    Serial.println(sps30_data.mc_4p0);
+    Serial.print("PM 10.0: ");
+    Serial.println(sps30_data.mc_10p0);
+    Serial.print("NC  0.5: ");
+    Serial.println(sps30_data.nc_0p5);
+    Serial.print("NC  1.0: ");
+    Serial.println(sps30_data.nc_1p0);
+    Serial.print("NC  2.5: ");
+    Serial.println(sps30_data.nc_2p5);
+    Serial.print("NC  4.0: ");
+    Serial.println(sps30_data.nc_4p0);
+    Serial.print("NC 10.0: ");
+    Serial.println(sps30_data.nc_10p0);
+
+    Serial.print("Typical partical size: ");
+    Serial.println(sps30_data.typical_particle_size);
+#endif // defined(WITH_SPS30_I2C)
+
     if (BATTERY_DIVIDER_RATIO) {
       Serial.print(F("Battery Divider Ratio: "));
       Serial.println(BATTERY_DIVIDER_RATIO);
@@ -242,6 +292,9 @@ void loop() {
 #ifdef WITH_LUX
   lux = readLux();
 #endif // WITH_LUX
+#if defined(WITH_SPS30_I2C)
+  sps30_data = readSps30();
+#endif // defined(WITH_SPS30_I2C)
 
   if (DEBUG)
     dumpData();
@@ -333,6 +386,28 @@ void dumpData() {
   Serial.print(F(", lux="));
   Serial.print(lux);
 #endif // WITH_LUX
+#if defined(WITH_SPS30_I2C)
+  Serial.print(", pm1.0=");
+  Serial.print(sps30_data.mc_1p0);
+  Serial.print(", pm2.5=");
+  Serial.print(sps30_data.mc_2p5);
+  Serial.print(", pm4.0=");
+  Serial.print(sps30_data.mc_4p0);
+  Serial.print(", pm10.0=");
+  Serial.print(sps30_data.mc_10p0);
+  Serial.print(", nc0.5=");
+  Serial.print(sps30_data.nc_0p5);
+  Serial.print(", nc1.0=");
+  Serial.print(sps30_data.nc_1p0);
+  Serial.print(", nc2.5=");
+  Serial.print(sps30_data.nc_2p5);
+  Serial.print(", nc4.0=");
+  Serial.print(sps30_data.nc_4p0);
+  Serial.print(", nc10.0=");
+  Serial.print(sps30_data.nc_10p0);
+  Serial.print(", typ_size=");
+  Serial.print(sps30_data.typical_particle_size);
+#endif // defined(WITH_SPS30_I2C)
   Serial.println();
   Serial.flush();
 }
@@ -401,6 +476,10 @@ void queueData() {
   flags |= FLAG_WITH_LUX;
   length += 2;
 #endif
+#ifdef WITH_SPS30_I2C
+  flags |= FLAG_WITH_PM;
+  length += 4;
+#endif
 
   // To add extra data, uncomment the section below and change the number
   // of extra data bits to what you are actualy using. Additionally,
@@ -437,6 +516,10 @@ void queueData() {
 #ifdef WITH_LUX
   // Chop off 2 bits to allow up to 256k lux (maximum solar power should be around 128k)
   packet.append(lux >> 2, 16);
+#endif
+#ifdef WITH_SPS30_I2C
+  packet.append(sps30_data.mc_2p5, 16);
+  packet.append(sps30_data.mc_10p0, 16);
 #endif
 
   if (BATTERY_DIVIDER_RATIO) {
@@ -588,4 +671,40 @@ uint32_t readLux()
   return result;
 }
 
-#endif
+#endif // WITH_LUX
+
+#ifdef WITH_SPS30_I2C
+struct sps30_measurement readSps30() {
+  struct sps30_measurement res = {};
+
+  // Enable power and start measurement to power up fan
+  digitalWrite(PIN_ENABLE_5V, HIGH);
+  delay(500);
+  int16_t ret = sps30_start_measurement();
+  Serial.println("Turned on SPS30, waiting to stabilize");
+  delay(10000);
+
+  uint16_t data_ready;
+  do {
+    ret = sps30_read_data_ready(&data_ready);
+    if (ret < 0) {
+      Serial.print("Error reading SPS30 data-ready flag: ");
+      Serial.println(ret);
+      return res;
+    }
+  } while (!data_ready);
+
+  ret = sps30_read_measurement(&res);
+  if (ret < 0) {
+    Serial.print("Error reading SPS30 measurement: ");
+    Serial.println(ret);
+    return res;
+  }
+
+  Serial.println("Read data, turning off SPS30");
+  digitalWrite(PIN_ENABLE_5V, LOW);
+
+  return res;
+}
+
+#endif // WITH_SPS30_I2C
