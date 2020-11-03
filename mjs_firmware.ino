@@ -368,8 +368,10 @@ void doSleep(uint32_t time) {
   power_adc_enable();
   ADCSRA |= (1 << ADEN);
   #else
-  // TODO
-  delay(time);
+  // No need to update the millis counter, STM32L0 uses the RTC for
+  // millis and keeps it running during sleep for wakeup.
+  if (time)
+    STM32L0.sleep(time);
   #endif
 }
 
