@@ -132,9 +132,11 @@ void setup() {
   pinMode(SW_GND_PIN, OUTPUT);
   digitalWrite(SW_GND_PIN, LOW);
 
+  #ifdef WITH_LUX
   // This pin can be used in OUTPUT LOW mode to add an extra pulldown
   // resistor, or in INPUT mode to keep it disconnected
   pinMode(LUX_HIGH_PIN, INPUT);
+  #endif
 
   // blink 'hello'
   pinMode(LED_PIN, OUTPUT);
