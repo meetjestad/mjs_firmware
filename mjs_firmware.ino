@@ -136,6 +136,7 @@ void setup() {
   // This pin can be used in OUTPUT LOW mode to add an extra pulldown
   // resistor, or in INPUT mode to keep it disconnected
   pinMode(LUX_HIGH_PIN, INPUT);
+  pinMode(LUX_PIN, INPUT);
   #endif
 
   // blink 'hello'
