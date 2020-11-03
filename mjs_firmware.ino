@@ -158,6 +158,11 @@ void setup() {
   // when in debugging mode start serial connection
   if(DEBUG) {
     Serial.begin(9600);
+    unsigned long start = millis();
+    while (!Serial && millis() - start < 5000) /* wait */;
+    // Wait a bit more, otherwise some clients (e.g. minicom on Linux) seem to miss the first bit of output...
+    delay(250);
+
     Serial.println(F("Start"));
   }
 
