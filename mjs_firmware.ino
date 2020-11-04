@@ -165,6 +165,13 @@ void setup() {
     // Wait a bit more, otherwise some clients (e.g. minicom on Linux) seem to miss the first bit of output...
     delay(250);
 
+    if (!Serial) {
+      // If serial was not opened at startup, close it again to prevent
+      // locking up because writes will start blocking when the buffer
+      // fills up.
+      Serial.end();
+    }
+
     Serial.println(F("Start"));
   }
 
