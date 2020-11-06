@@ -53,6 +53,11 @@ uint8_t const BATTERY_DIVIDER_PIN = A0;
 auto const BATTERY_DIVIDER_REF = INTERNAL;
 uint16_t const BATTERY_DIVIDER_REF_MV = 1137;
 
+float const SOLAR_DIVIDER_RATIO = 0;
+uint8_t const SOLAR_DIVIDER_PIN = 0;
+auto const SOLAR_DIVIDER_REF = INTERNAL;
+uint16_t const SOLAR_DIVIDER_REF_MV = 1137;
+
 // Value in mV (nominal @ 25ºC, Vcc=3.3V)
 // The temperature coefficient of the reference_voltage is neglected
 float const reference_voltage_internal = 1137.0;
@@ -74,6 +79,11 @@ float const BATTERY_DIVIDER_RATIO = (1.0 + 1.0) / 1.0;
 uint8_t const BATTERY_DIVIDER_PIN = A0;
 auto const BATTERY_DIVIDER_REF = AR_DEFAULT;
 uint16_t const BATTERY_DIVIDER_REF_MV = 3000;
+
+float const SOLAR_DIVIDER_RATIO = (2.0 + 1.0) / 1.0;
+uint8_t const SOLAR_DIVIDER_PIN = PC5; // TODO: Use PIN_SOLAR once added to the core
+auto const SOLAR_DIVIDER_REF = AR_DEFAULT;
+uint16_t const SOLAR_DIVIDER_REF_MV = 3000;
 
 #define GPS_SERIAL Serial2
 uint8_t const GPS_ENABLE_PIN = PIN_ENABLE_3V_GPS;
@@ -175,6 +185,15 @@ void setup() {
     Serial.println(F("Start"));
   }
 
+  if (SOLAR_DIVIDER_RATIO) {
+    analogReference(SOLAR_DIVIDER_REF);
+    uint16_t reading = analogRead(SOLAR_DIVIDER_PIN);
+    Serial.println(reading);
+    // Encoded in units of 1mv
+    uint16_t solar = (uint32_t)(reading*SOLAR_DIVIDER_RATIO*SOLAR_DIVIDER_REF_MV)/1023;
+    Serial.println(solar);
+  }
+
   // setup LoRa transceiver
   mjs_lmic_setup();
 
@@ -269,6 +288,10 @@ void setup() {
     if (BATTERY_DIVIDER_RATIO) {
       Serial.print(F("Battery Divider Ratio: "));
       Serial.println(BATTERY_DIVIDER_RATIO);
+    }
+    if (SOLAR_DIVIDER_RATIO) {
+      Serial.print(F("Solar Divider Ratio: "));
+      Serial.println(SOLAR_DIVIDER_RATIO);
     }
     Serial.flush();
   }
@@ -509,6 +532,11 @@ void queueData() {
   length += (extra_bits + 7)/8;
   flags |= FLAG_WITH_EXTRA;
 #endif // WITH_SPS30_I2C
+  const uint8_t SOLAR_EXTRA_FIELD_BITS = 15;
+  if (SOLAR_DIVIDER_RATIO) {
+    length += SOLAR_EXTRA_FIELD_BITS;
+    flags |= FLAG_WITH_EXTRA;
+  }
 
   uint8_t data[length];
   BitStream packet(data, sizeof(data));
@@ -581,6 +609,15 @@ void queueData() {
   // so they cannot be a valid field.
   packet.append(0xff, packet.free_bits());
 #endif // WITH_SPS30_I2C
+
+  if (SOLAR_DIVIDER_RATIO) {
+    analogReference(SOLAR_DIVIDER_REF);
+    uint16_t reading = analogRead(SOLAR_DIVIDER_PIN);
+    // Encoded in units of 1mv
+    uint16_t solar = (uint32_t)(reading*SOLAR_DIVIDER_RATIO*SOLAR_DIVIDER_REF_MV)/1023;
+    packet.append(SOLAR_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+    packet.append(solar, SOLAR_EXTRA_FIELD_BITS);
+  }
 
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, packet.data(), packet.byte_size(), 0);
