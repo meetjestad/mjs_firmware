@@ -182,6 +182,11 @@ void setup() {
       // locking up because writes will start blocking when the buffer
       // fills up.
       Serial.end();
+      #if defined(ARDUINO_MJS2020_PROTO2)
+      // And disconnect USB completely to save power (otherwise sleeping
+      // is prevented entirely).
+      USBDevice.detach();
+      #endif
     }
 
     Serial.println(F("Start"));
