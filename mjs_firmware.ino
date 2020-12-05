@@ -408,7 +408,7 @@ void doSleep(uint32_t time) {
   // No need to update the millis counter, STM32L0 uses the RTC for
   // millis and keeps it running during sleep for wakeup.
   if (time)
-    STM32L0.sleep(time);
+    STM32L0.stop(time);
   #endif
 }
 
