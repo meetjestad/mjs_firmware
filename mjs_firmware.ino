@@ -127,6 +127,9 @@ float const lx_conv_low = 1.0E6 / (R12 * light_current * 1024.0);
 // Sensor object
 HTU21D htu;
 
+// GPS reader
+NMEAGPS gps;
+
 // Most recently read values
 float temperature;
 float humidity;
@@ -456,8 +459,6 @@ void getPosition()
   // Setup GPS
   SoftwareSerial GPS_SERIAL(GPS_PIN, GPS_PIN);
   #endif
-
-  NMEAGPS gps;
 
   GPS_SERIAL.begin(9600);
   memset(&gps_data, 0, sizeof(gps_data));
