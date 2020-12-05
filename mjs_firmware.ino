@@ -75,13 +75,12 @@ uint8_t const LUX_PIN = A2;
 
 #elif defined(ARDUINO_MJS2020_PROTO2)
 float const BATTERY_DIVIDER_RATIO = (1.0 + 1.0) / 1.0;
-
-uint8_t const BATTERY_DIVIDER_PIN = A0;
+uint8_t const BATTERY_DIVIDER_PIN = PIN_BATTERY;
 auto const BATTERY_DIVIDER_REF = AR_DEFAULT;
 uint16_t const BATTERY_DIVIDER_REF_MV = 3000;
 
 float const SOLAR_DIVIDER_RATIO = (2.0 + 1.0) / 1.0;
-uint8_t const SOLAR_DIVIDER_PIN = PC5; // TODO: Use PIN_SOLAR once added to the core
+uint8_t const SOLAR_DIVIDER_PIN = PIN_SOLAR;
 auto const SOLAR_DIVIDER_REF = AR_DEFAULT;
 uint16_t const SOLAR_DIVIDER_REF_MV = 3000;
 
