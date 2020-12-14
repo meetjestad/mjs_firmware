@@ -40,6 +40,9 @@
 // For untagged/experimental versions, use 255.
 const uint8_t FIRMWARE_VERSION = 255;
 
+// Baudrate for hardware serial port
+const uint16_t SERIAL_BAUD = 9600;
+
 #if defined(ARDUINO_MJS_V1)
 
 // This sets the ratio of the battery voltage divider attached to A0,
@@ -168,27 +171,83 @@ gps_fix gps_data;
 
 uint8_t const LORA_PORT = 13;
 
+#if defined(SERIAL_IS_SERIALUSB) || defined(SERIAL_IS_CONFIGURABLE)
+bool wait_for_usb_configured(unsigned long timeout) {
+    unsigned long start = millis();
+    while (!USBDevice.connected() && millis() - start < timeout) /* wait */;
+
+    return USBDevice.connected();
+}
+
+bool wait_for_serialusb_opened(unsigned long timeout) {
+    unsigned long start = millis();
+    while (!SerialUSB && millis() - start < timeout) /* wait */;
+
+    return (bool)SerialUSB;
+}
+
+bool setup_serialusb() {
+  // First, see if we are configured at the USB device level. This
+  // happens automatically when USB is plugged into an USB host without
+  // any user interaction, typically within a couple of hundred ms. If
+  // that doesn't happen quickly, assume we're not connected to USB at
+  // all and fail.
+  if (wait_for_usb_configured(1000)) {
+    // USB device was configured, so start serial port.
+    SerialUSB.begin(0);
+
+    // Then, see if the serial port is actually opened. Because this
+    // needs action from the user, give them ample time for this.
+    if (wait_for_serialusb_opened(10000)) {
+      // Serial port was opened, we can use it.
+      //
+      // Wait a bit more, otherwise some clients (e.g. minicom on Linux) seem to miss the first bit of output...
+      delay(250);
+
+      return true;
+    } else {
+      // Stop the serial port again so any prints to it are ignored,
+      // rather than filling up the buffer and eventually locking up
+      // when the buffer is full.
+      SerialUSB.end();
+    }
+  }
+
+  return false;
+}
+#endif // defined(SERIAL_IS_SERIALUSB) || defined(SERIAL_IS_CONFIGURABLE)
+
+bool setup_serial() {
+  #if defined(ARDUINO_MJS_V1) || defined(SERIAL_IS_SERIAL1)
+  // For a hardware serial port, just call begin and be done.
+  // Anyone interested in the output can start listening before power-up
+  // or reset and if nobody is listening, then the messages are just
+  // lost without blocking.
+  Serial.begin(SERIAL_BAUD);
+  #elif defined(SERIAL_IS_SERIALUSB)
+  // For SerialUSB, things are more tricky, since the computer can only
+  // open the serial port *after* the board started. This delays
+  // startup to give the computer a chance to open the port so it can
+  // see all messages printed to serial.
+  setup_serialusb();
+  #elif defined(SERIAL_IS_CONFIGURABLE)
+  if (setup_serialusb()) {
+    // SerialUSB port was openend, use that
+    ConfigurableSerial = &SerialUSB;
+  } else {
+    // SerialUSB port was not opened, use hardware serial port instead
+    Serial1.begin(SERIAL_BAUD);
+    ConfigurableSerial = &Serial1;
+  }
+  #else
+  #error "Unknown serial setup"
+  #endif
+}
+
 void setup() {
   // when in debugging mode start serial connection
   if(DEBUG) {
-    Serial.begin(9600);
-    unsigned long start = millis();
-    while (!Serial && millis() - start < 5000) /* wait */;
-    // Wait a bit more, otherwise some clients (e.g. minicom on Linux) seem to miss the first bit of output...
-    delay(250);
-
-    if (!Serial) {
-      // If serial was not opened at startup, close it again to prevent
-      // locking up because writes will start blocking when the buffer
-      // fills up.
-      Serial.end();
-      #if defined(ARDUINO_MJS2020_PROTO2)
-      // And disconnect USB completely to save power (otherwise sleeping
-      // is prevented entirely).
-      USBDevice.detach();
-      #endif
-    }
-
+    setup_serial();
     Serial.println(F("Start"));
   }
 
@@ -405,6 +464,16 @@ void doSleep(uint32_t time) {
   power_adc_enable();
   ADCSRA |= (1 << ADEN);
   #else
+
+  // Shut down USB. Without this, sleeping is completely prevented (and
+  // the USB block also consumes power).
+  // By doing this here, rather than in setup_serialusb(), firmware
+  // uploads remain possible until the first sleep (and also usb is now
+  // detached even when not using serialusb).
+  // Note that after sleep, USB is not reattached. When USB is already
+  // detached, this is just a no-op.
+  USBDevice.detach();
+
   // No need to update the millis counter, STM32L0 uses the RTC for
   // millis and keeps it running during sleep for wakeup.
   if (time)
