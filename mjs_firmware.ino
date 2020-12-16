@@ -245,11 +245,15 @@ bool setup_serial() {
 }
 
 void setup() {
+  writeLed(0xff0000); // red
+
   // when in debugging mode start serial connection
   if(DEBUG) {
     setup_serial();
     Serial.println(F("Start"));
   }
+
+  writeLed(0xff0c00); // orange
 
   if (SOLAR_DIVIDER_RATIO) {
     analogReference(SOLAR_DIVIDER_REF);
@@ -262,6 +266,10 @@ void setup() {
 
   // setup LoRa transceiver
   mjs_lmic_setup();
+
+  // Work around BasicMAC initializing LED_BUILTIN to OUTPUT, can be
+  // removed once BasicMAC is fixed. This produces a very short blink.
+  writeLed(0x800c00); // orange
 
   // setup switched ground and power down connected peripherals (GPS module)
   pinMode(GPS_ENABLE_PIN , OUTPUT);
@@ -281,12 +289,6 @@ void setup() {
   pinMode(LUX_HIGH_PIN, INPUT);
   pinMode(LUX_PIN, INPUT);
   #endif
-
-  // blink 'hello'
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LED_ON);
-  delay(500);
-  digitalWrite(LED_PIN, !LED_ON);
 
   // start communication to sensors
   htu.begin();
@@ -362,6 +364,8 @@ void setup() {
     Serial.flush();
   }
 
+  writeLed(0x803000); // yellow
+
   // Start join
   LMIC_startJoining();
 
@@ -369,6 +373,8 @@ void setup() {
   // TODO: Sleep between join attempts
   while ((LMIC.opmode & (OP_JOINING)))
     os_runloop_once();
+
+  writeLed(0x000000); // off (will be turned back on for GPS directly)
 }
 
 void loop() {
@@ -377,7 +383,9 @@ void loop() {
 
   // Activate GPS every now and then to update our position
   if (updatesBeforeGpsUpdate == 0) {
+    writeLed(0x408080); // cyan
     getPosition();
+    writeLed(0x000000); // off
     updatesBeforeGpsUpdate = GPS_UPDATE_RATIO;
     // Use the lowest datarate, to maximize range. This helps for
     // debugging, since range problems can be more easily distinguished
@@ -396,12 +404,15 @@ void loop() {
   lux = readLux();
 #endif // WITH_LUX
 #if defined(WITH_SPS30_I2C)
+  writeLed(0xff00ff); // purple
   sps30_data = readSps30();
+  writeLed(0x000000); // off
 #endif // defined(WITH_SPS30_I2C)
 
   if (DEBUG)
     dumpData();
 
+  writeLed(0x0000ff); // blue
   // Work around a race condition in LMIC, that is greatly amplified
   // if we sleep without calling runloop and then queue data
   // See https://github.com/lmic-lib/lmic/issues/3
@@ -411,6 +422,8 @@ void loop() {
   queueData();
 
   mjs_lmic_wait_for_txcomplete();
+
+  writeLed(0x000000); // off
 
   // Schedule sleep
   unsigned long msPast = millis() - startMillis;
@@ -842,6 +855,35 @@ struct sps30_measurement readSps30() {
   digitalWrite(PIN_ENABLE_5V, LOW);
 
   return res;
+}
+
+void writeSingleLed(uint8_t pin, uint8_t val) {
+  #if defined(ARDUINO_MJS2020_PROTO2)
+  if (val == 0) {
+    // For zero, work around a problem that analogWrite(255) is still
+    // low for 1/256th of the time. Use HIGHZ to additionally save a
+    // little power by disabling the digital pin driver completely.
+    // https://github.com/GrumpyOldPizza/ArduinoCore-stm32l0/issues/104
+    pinMode(pin, HIGHZ);
+  } else {
+    // Use the full 12-bits resolution (so analogWrite accepts 0-4095).
+    // By not scaling val up, this effectively dims the led 16x (but
+    // without rounding, so you can still produce tiny color
+    // differences).
+    analogWriteResolution(12);
+    analogWrite(pin, 4095 - val);
+    // Reset back to the default, which other code probably expects.
+    analogWriteResolution(8);
+  }
+  #endif
+}
+
+void writeLed(uint32_t rgb) {
+  #if defined(ARDUINO_MJS2020_PROTO2)
+  writeSingleLed(PIN_LED_RED, (rgb >> 16));
+  writeSingleLed(PIN_LED_GREEN, (rgb >> 8));;
+  writeSingleLed(PIN_LED_BLUE, (rgb >> 0));
+  #endif
 }
 
 #endif // WITH_SPS30_I2C
