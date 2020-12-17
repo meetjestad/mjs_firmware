@@ -306,7 +306,9 @@ void setup() {
     lux = readLux();
 #endif
 #if defined(WITH_SPS30_I2C)
+    #if defined(ARDUINO_MJS2020_PROTO2)
     digitalWrite(PIN_ENABLE_5V, HIGH);
+    #endif // defined(ARDUINO_MJS2020_PROTO2)
     delay(500);
     char sps30_serial[SPS30_MAX_SERIAL_LEN];
     int16_t ret = sps30_get_serial(sps30_serial);
@@ -828,7 +830,9 @@ struct sps30_measurement readSps30() {
   struct sps30_measurement res = {};
 
   // Enable power and start measurement to power up fan
+  #if defined(ARDUINO_MJS2020_PROTO2)
   digitalWrite(PIN_ENABLE_5V, HIGH);
+  #endif // defined(ARDUINO_MJS2020_PROTO2)
   delay(500);
   int16_t ret = sps30_start_measurement();
   Serial.println("Turned on SPS30, waiting to stabilize");
@@ -852,7 +856,9 @@ struct sps30_measurement readSps30() {
   }
 
   Serial.println("Read data, turning off SPS30");
+  #if defined(ARDUINO_MJS2020_PROTO2)
   digitalWrite(PIN_ENABLE_5V, LOW);
+  #endif // defined(ARDUINO_MJS2020_PROTO2)
 
   return res;
 }
