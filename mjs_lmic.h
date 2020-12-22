@@ -241,10 +241,16 @@ void mjs_lmic_setup() {
   #endif
 
   uint8_t buf[MJS_APP_KEY_LEN];
+  os_getDevEui(buf);
+  // For devices with low (< 64k) DevEUI values, print a more human
+  // readable, decimal id too (as used in TTN).
+  if (!buf[7] && !buf[6] && !buf[5] && !buf[4] && !buf[3] && !buf[2]) {
+    Serial.print("meetstation-");
+    Serial.println((uint16_t)buf[1] << 8 | buf[0]);
+  }
+  printHex(F("Dev EUI: "), buf, MJS_DEV_EUI_LEN);
   os_getArtEui(buf);
   printHex(F("App EUI: "), buf, MJS_APP_EUI_LEN);
-  os_getDevEui(buf);
-  printHex(F("Dev EUI: "), buf, MJS_DEV_EUI_LEN);
   os_getDevKey(buf);
   printHex(F("App Key: "), buf, MJS_APP_KEY_LEN);
 
