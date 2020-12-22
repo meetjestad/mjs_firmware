@@ -9,7 +9,7 @@
 
  *******************************************************************************/
 
-#define USE_EEPROM_ON_MJS2020
+//#define USE_EEPROM_ON_MJS2020
 
 #define MJS_APP_EUI_LEN 8
 #define MJS_DEV_EUI_LEN 8
