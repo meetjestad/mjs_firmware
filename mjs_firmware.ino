@@ -862,6 +862,7 @@ struct sps30_measurement readSps30() {
 
   return res;
 }
+#endif // WITH_SPS30_I2C
 
 void writeSingleLed(uint8_t pin, uint8_t val) {
   #if defined(ARDUINO_MJS2020_PROTO2)
@@ -891,5 +892,3 @@ void writeLed(uint32_t rgb) {
   writeSingleLed(PIN_LED_BLUE, (rgb >> 0));
   #endif
 }
-
-#endif // WITH_SPS30_I2C
