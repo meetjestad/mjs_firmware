@@ -255,15 +255,6 @@ void setup() {
 
   writeLed(0xff0c00); // orange
 
-  if (SOLAR_DIVIDER_RATIO) {
-    analogReference(SOLAR_DIVIDER_REF);
-    uint16_t reading = analogRead(SOLAR_DIVIDER_PIN);
-    Serial.println(reading);
-    // Encoded in units of 1mv
-    uint16_t solar = (uint32_t)(reading*SOLAR_DIVIDER_RATIO*SOLAR_DIVIDER_REF_MV)/1023;
-    Serial.println(solar);
-  }
-
   // setup LoRa transceiver
   mjs_lmic_setup();
 
