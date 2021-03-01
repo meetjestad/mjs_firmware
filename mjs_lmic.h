@@ -121,7 +121,7 @@ const lmic_pinmap lmic_pins = {
   .rst = 9,
   .dio = {2, 3, 4},
 };
-#elif defined(ARDUINO_MJS2020_PROTO2)
+#elif defined(ARDUINO_MJS2020)
 const lmic_pinmap lmic_pins = {
   .nss = PIN_LORA_SS,
   .tx = LMIC_CONTROLLED_BY_DIO2,

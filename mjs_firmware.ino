@@ -76,7 +76,7 @@ uint8_t const LUX_HIGH_PIN = 5;
 uint8_t const LUX_PIN = A2;
 #define GPS_USE_SOFTWARE_SERIAL
 
-#elif defined(ARDUINO_MJS2020_PROTO2)
+#elif defined(ARDUINO_MJS2020)
 float const BATTERY_DIVIDER_RATIO = (1.0 + 1.0) / 1.0;
 uint8_t const BATTERY_DIVIDER_PIN = PIN_BATTERY;
 auto const BATTERY_DIVIDER_REF = AR_DEFAULT;
@@ -266,7 +266,7 @@ void setup() {
   pinMode(GPS_ENABLE_PIN , OUTPUT);
   digitalWrite(GPS_ENABLE_PIN, LOW);
 
-  #if defined(ARDUINO_MJS2020_PROTO2)
+  #if defined(ARDUINO_MJS2020)
   pinMode(PIN_ENABLE_5V, OUTPUT);
   digitalWrite(PIN_ENABLE_5V, LOW);
 
@@ -297,9 +297,9 @@ void setup() {
     lux = readLux();
 #endif
 #if defined(WITH_SPS30_I2C)
-    #if defined(ARDUINO_MJS2020_PROTO2)
+    #if defined(ARDUINO_MJS2020)
     digitalWrite(PIN_ENABLE_5V, HIGH);
-    #endif // defined(ARDUINO_MJS2020_PROTO2)
+    #endif // defined(ARDUINO_MJS2020)
     delay(500);
     char sps30_serial[SPS30_MAX_SERIAL_LEN];
     int16_t ret = sps30_get_serial(sps30_serial);
@@ -821,9 +821,9 @@ struct sps30_measurement readSps30() {
   struct sps30_measurement res = {};
 
   // Enable power and start measurement to power up fan
-  #if defined(ARDUINO_MJS2020_PROTO2)
+  #if defined(ARDUINO_MJS2020)
   digitalWrite(PIN_ENABLE_5V, HIGH);
-  #endif // defined(ARDUINO_MJS2020_PROTO2)
+  #endif // defined(ARDUINO_MJS2020)
   delay(500);
   int16_t ret = sps30_start_measurement();
   Serial.println("Turned on SPS30, waiting to stabilize");
@@ -847,29 +847,37 @@ struct sps30_measurement readSps30() {
   }
 
   Serial.println("Read data, turning off SPS30");
-  #if defined(ARDUINO_MJS2020_PROTO2)
+  #if defined(ARDUINO_MJS2020)
   digitalWrite(PIN_ENABLE_5V, LOW);
-  #endif // defined(ARDUINO_MJS2020_PROTO2)
+  #endif // defined(ARDUINO_MJS2020)
 
   return res;
 }
 #endif // WITH_SPS30_I2C
 
 void writeSingleLed(uint8_t pin, uint8_t val) {
-  #if defined(ARDUINO_MJS2020_PROTO2)
+  #if defined(ARDUINO_MJS2020)
+  // Work around a problem that analogWrite(255) is still
+  // low for 1/256th of the time. Use HIGHZ for zero to save a
+  // little power by disabling the digital pin driver completely. Also,
+  // work around that analogWrite(4095) is not fully high (which is
+  // problematic on PROTO2, because it means the led does not fully turn
+  // off).
+  // https://github.com/GrumpyOldPizza/ArduinoCore-stm32l0/issues/104
   if (val == 0) {
-    // For zero, work around a problem that analogWrite(255) is still
-    // low for 1/256th of the time. Use HIGHZ to additionally save a
-    // little power by disabling the digital pin driver completely.
-    // https://github.com/GrumpyOldPizza/ArduinoCore-stm32l0/issues/104
     pinMode(pin, HIGHZ);
   } else {
     // Use the full 12-bits resolution (so analogWrite accepts 0-4095).
-    // By not scaling val up, this effectively dims the led 16x (but
+    // By not scaling val up, this effectively dims the led 4x (but
     // without rounding, so you can still produce tiny color
     // differences).
-    analogWriteResolution(12);
+    analogWriteResolution(10);
+    #if defined(ARDUINO_MJS2020_PROTO2)
+    // On PROTO2, the LED is active-low
     analogWrite(pin, 4095 - val);
+    #else
+    analogWrite(pin, val);
+    #endif
     // Reset back to the default, which other code probably expects.
     analogWriteResolution(8);
   }
@@ -877,7 +885,7 @@ void writeSingleLed(uint8_t pin, uint8_t val) {
 }
 
 void writeLed(uint32_t rgb) {
-  #if defined(ARDUINO_MJS2020_PROTO2)
+  #if defined(ARDUINO_MJS2020)
   writeSingleLed(PIN_LED_RED, (rgb >> 16));
   writeSingleLed(PIN_LED_GREEN, (rgb >> 8));;
   writeSingleLed(PIN_LED_BLUE, (rgb >> 0));
