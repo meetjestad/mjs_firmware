@@ -874,7 +874,7 @@ void writeSingleLed(uint8_t pin, uint8_t val) {
     analogWriteResolution(10);
     #if defined(ARDUINO_MJS2020_PROTO2)
     // On PROTO2, the LED is active-low
-    analogWrite(pin, 4095 - val);
+    analogWrite(pin, 1023 - val);
     #else
     analogWrite(pin, val);
     #endif
