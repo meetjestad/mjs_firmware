@@ -644,6 +644,8 @@ void queueData() {
   length += 4;
 #endif
 
+uint8_t extra_bits = 0;
+
 #ifdef WITH_SPS30_I2C
   // Add *all* PM data as extra fields. This defines the extra size
   // needed, actual values are defined below.
@@ -652,14 +654,17 @@ void queueData() {
   // 6553.5 #/cm³ (datasheet says up to 3000) and up to
   // 65535 nm typical particle size (datasheet suggests up to 10).
   const uint8_t SPS30_EXTRA_FIELD_BITS = 15;
-  const uint8_t extra_bits = 9*(EXTRA_SIZE_BITS+SPS30_EXTRA_FIELD_BITS);
-  length += (extra_bits + 7)/8;
-  flags |= FLAG_WITH_EXTRA;
+  extra_bits += 9 * (EXTRA_SIZE_BITS + SPS30_EXTRA_FIELD_BITS);
 #endif // WITH_SPS30_I2C
+
   const uint8_t SOLAR_EXTRA_FIELD_BITS = 15;
   if (SOLAR_DIVIDER_RATIO) {
-    length += SOLAR_EXTRA_FIELD_BITS;
+    extra_bits += EXTRA_SIZE_BITS + SOLAR_EXTRA_FIELD_BITS;
+  }
+
+  if (extra_bits) {
     flags |= FLAG_WITH_EXTRA;
+    length += (extra_bits + 7)/8;
   }
 
   uint8_t data[length];
@@ -726,10 +731,6 @@ void queueData() {
 
   packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
   packet.append(sps30_data.typical_particle_size * 1000 + 0.5, SPS30_EXTRA_FIELD_BITS);
-
-  // Fill any remaining bits (from rounding up to whole bytes) with 1's,
-  // so they cannot be a valid field.
-  packet.append(0xff, packet.free_bits());
 #endif // WITH_SPS30_I2C
 
   if (SOLAR_DIVIDER_RATIO) {
@@ -737,6 +738,10 @@ void queueData() {
     packet.append(SOLAR_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
     packet.append(vsolar, SOLAR_EXTRA_FIELD_BITS);
   }
+
+  // Fill any remaining bits (from rounding up to whole bytes) with 1's,
+  // so they cannot be a valid field.
+  packet.append(0xFF, packet.free_bits());
 
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, packet.data(), packet.byte_size(), 0);
