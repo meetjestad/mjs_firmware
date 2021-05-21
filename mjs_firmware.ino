@@ -295,6 +295,10 @@ void setup() {
   if (DEBUG) {
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
+    if (BATTERY_DIVIDER_RATIO)
+      vbatt = readVbatt();
+    if (SOLAR_DIVIDER_RATIO)
+      vsolar = readVsolar();
     vcc = readVcc();
 #ifdef WITH_LUX
     lux = readLux();
@@ -317,6 +321,18 @@ void setup() {
     Serial.println(temperature);
     Serial.print(F("Humidity: "));
     Serial.println(humidity);
+    if (BATTERY_DIVIDER_RATIO) {
+      Serial.print(F("Battery Divider Ratio: "));
+      Serial.println(BATTERY_DIVIDER_RATIO);
+      Serial.print(F("Vbatt: "));
+      Serial.println(vbatt);
+    }
+    if (SOLAR_DIVIDER_RATIO) {
+      Serial.print(F("Solar Divider Ratio: "));
+      Serial.println(SOLAR_DIVIDER_RATIO);
+      Serial.print(F("Vsolar: "));
+      Serial.println(vsolar);
+    }
     Serial.print(F("Vcc: "));
     Serial.println(vcc);
 #ifdef WITH_LUX
@@ -349,14 +365,6 @@ void setup() {
     Serial.println(sps30_data.typical_particle_size);
 #endif // defined(WITH_SPS30_I2C)
 
-    if (BATTERY_DIVIDER_RATIO) {
-      Serial.print(F("Battery Divider Ratio: "));
-      Serial.println(BATTERY_DIVIDER_RATIO);
-    }
-    if (SOLAR_DIVIDER_RATIO) {
-      Serial.print(F("Solar Divider Ratio: "));
-      Serial.println(SOLAR_DIVIDER_RATIO);
-    }
     Serial.flush();
   }
 
