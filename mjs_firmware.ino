@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 // include external libraries
+#include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <SparkFunHTU21D.h>
@@ -173,6 +174,26 @@ uint32_t updatesBeforeGpsUpdate = 0;
 gps_fix gps_data;
 
 uint8_t const LORA_PORT = 13;
+
+/**
+ * Forward declarations for functions. Not strictly needed for Arduino,
+ * but makes the code easier to use with IDEs that do less
+ * preprocessing.
+ */
+void doSleep(uint32_t time);
+void dumpData();
+void getPosition();
+void queueData();
+uint16_t readVcc();
+uint16_t readVsolar();
+uint16_t readVbatt();
+#ifdef WITH_LUX
+uint32_t readLux():
+#endif // WITH_LUX
+#ifdef WITH_SPS30_I2C
+struct sps30_measurement readSps30();
+#endif // WITH_SPS30_I2C
+void writeLed(uint32_t rgb);
 
 #if defined(SERIAL_IS_SERIALUSB) || defined(SERIAL_IS_CONFIGURABLE)
 bool wait_for_usb_configured(unsigned long timeout) {
