@@ -137,6 +137,9 @@ NMEAGPS gps;
 float temperature;
 float humidity;
 uint16_t vcc = 0;
+uint16_t vbatt = 0;
+uint16_t vsolar = 0;
+
 #ifdef WITH_LUX
 uint32_t lux = 0;
 #endif
@@ -396,6 +399,10 @@ void loop() {
 #ifdef WITH_LUX
   lux = readLux();
 #endif // WITH_LUX
+  if (BATTERY_DIVIDER_RATIO)
+    vbatt = readVbatt();
+  if (SOLAR_DIVIDER_RATIO)
+    vsolar = readVsolar();
 #if defined(WITH_SPS30_I2C)
   writeLed(0xff00ff); // purple
   sps30_data = readSps30();
@@ -651,7 +658,7 @@ void queueData() {
 
   if (BATTERY_DIVIDER_RATIO) {
     // Encoded in units of 20mv
-    uint8_t batt = readVbatt() / 20;
+    uint8_t batt = vbatt / 20;
     // Shift down, zero means 1V now
     if (batt >= 50)
       packet.append(batt - 50, 8);
@@ -690,9 +697,8 @@ void queueData() {
 
   if (SOLAR_DIVIDER_RATIO) {
     // Encoded in units of 1mv
-    uint16_t solar = readVsolar();
     packet.append(SOLAR_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-    packet.append(solar, SOLAR_EXTRA_FIELD_BITS);
+    packet.append(vsolar, SOLAR_EXTRA_FIELD_BITS);
   }
 
   // Prepare upstream data transmission at the next possible time.
