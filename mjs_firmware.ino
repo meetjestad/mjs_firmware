@@ -626,6 +626,16 @@ void getPosition()
   GPS_SERIAL.end();
 }
 
+/**
+ * Append an extra field to a packet being built.
+ */
+void appendExtra(BitStream& packet, uint32_t value, size_t bits) {
+  // First add the size of the field (minus one to allow a size of 1-32
+  // rather than 0-31).
+  packet.append(bits-1, EXTRA_SIZE_BITS);
+  packet.append(value, bits);
+}
+
 void queueData() {
   uint8_t length = 12;
   uint8_t flags = 0;
@@ -709,34 +719,23 @@ uint8_t extra_bits = 0;
   }
 
 #ifdef WITH_SPS30_I2C
-  // Append extra fields. For each field, first add the size of the
-  // field (minus one to allow a size of 1-32 rather than 0-31).
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  // Append extra fields
+  appendExtra(packet, sps30_data.mc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.mc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.mc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.mc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.nc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.nc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.nc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.nc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.typical_particle_size * 1000 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  appendExtra(packet, sps30_data.typical_particle_size * 1000 + 0.5, SPS30_EXTRA_FIELD_BITS);
 #endif // WITH_SPS30_I2C
 
   if (SOLAR_DIVIDER_RATIO) {
     // Encoded in units of 1mv
-    packet.append(SOLAR_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-    packet.append(vsolar, SOLAR_EXTRA_FIELD_BITS);
+    appendExtra(packet, vsolar, SOLAR_EXTRA_FIELD_BITS);
   }
 
   // Fill any remaining bits (from rounding up to whole bytes) with 1's,
