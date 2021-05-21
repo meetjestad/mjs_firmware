@@ -342,7 +342,7 @@ void setup() {
     Serial.print("NC 10.0: ");
     Serial.println(sps30_data.nc_10p0);
 
-    Serial.print("Typical partical size: ");
+    Serial.print("Typical particle size: ");
     Serial.println(sps30_data.typical_particle_size);
 #endif // defined(WITH_SPS30_I2C)
 
