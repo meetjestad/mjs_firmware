@@ -651,8 +651,8 @@ void queueData() {
   // This allows up to 6553.5 μg/m³ (datasheet says up to 1000), up to
   // 6553.5 #/cm³ (datasheet says up to 3000) and up to
   // 65535 nm typical particle size (datasheet suggests up to 10).
-  const uint8_t EXTRA_FIELD_BITS = 15;
-  const uint8_t extra_bits = 9*(EXTRA_SIZE_BITS+EXTRA_FIELD_BITS);
+  const uint8_t SPS30_EXTRA_FIELD_BITS = 15;
+  const uint8_t extra_bits = 9*(EXTRA_SIZE_BITS+SPS30_EXTRA_FIELD_BITS);
   length += (extra_bits + 7)/8;
   flags |= FLAG_WITH_EXTRA;
 #endif // WITH_SPS30_I2C
@@ -705,27 +705,27 @@ void queueData() {
 
 #ifdef WITH_SPS30_I2C
   // Append extra fields. For each field, first add the size of the
-  // field (minus on to allow a size of 1-32 rather than 0-31).
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_1p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_2p5 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_4p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_10p0 * 10 + 0.5, EXTRA_FIELD_BITS);
+  // field (minus one to allow a size of 1-32 rather than 0-31).
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.mc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.mc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.mc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.mc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_1p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_2p5 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_4p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_10p0 * 10 + 0.5, EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.nc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.nc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.nc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.nc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.typical_particle_size * 1000 + 0.5, EXTRA_FIELD_BITS);
+  packet.append(SPS30_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
+  packet.append(sps30_data.typical_particle_size * 1000 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
   // Fill any remaining bits (from rounding up to whole bytes) with 1's,
   // so they cannot be a valid field.
