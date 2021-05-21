@@ -44,6 +44,9 @@ const uint8_t FIRMWARE_VERSION = 255;
 // Baudrate for hardware serial port
 const uint16_t SERIAL_BAUD = 9600;
 
+// When this voltage is reached, skip power hungry sensors
+uint16_t const MIN_BATT_VOLT = 3300;
+
 #if defined(ARDUINO_MJS_V1)
 
 // This sets the ratio of the battery voltage divider attached to A0,
@@ -187,6 +190,7 @@ void queueData();
 uint16_t readVcc();
 uint16_t readVsolar();
 uint16_t readVbatt();
+bool batteryVoltageOk(uint16_t voltage, const __FlashStringHelper* device);
 #ifdef WITH_LUX
 uint32_t readLux():
 #endif // WITH_LUX
@@ -324,19 +328,25 @@ void setup() {
 #ifdef WITH_LUX
     lux = readLux();
 #endif
+
 #if defined(WITH_SPS30_I2C)
-    #if defined(ARDUINO_MJS2020)
-    digitalWrite(PIN_ENABLE_5V, HIGH);
-    #endif // defined(ARDUINO_MJS2020)
-    delay(500);
     char sps30_serial[SPS30_MAX_SERIAL_LEN];
-    int16_t ret = sps30_get_serial(sps30_serial);
-    if (ret < 0) {
-      Serial.print("Error reading SPS30 serial: ");
-      Serial.println(ret);
+    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+      #if defined(ARDUINO_MJS2020)
+      digitalWrite(PIN_ENABLE_5V, HIGH);
+      #endif // defined(ARDUINO_MJS2020_PROTO2)
+      delay(500);
+      int16_t ret = sps30_get_serial(sps30_serial);
+      if (ret < 0) {
+          Serial.print(F("Error reading SPS30 serial: "));
+          Serial.println(ret);
+      }
+      // Leave 5V on, readSps30 turns it off
+      sps30_data = readSps30();
+    } else {
+      // Marker to indicate we skipped the read
+      sps30_data.typical_particle_size = NAN;
     }
-    // Leave 5V on, readSps30 turns it off
-    sps30_data = readSps30();
 #endif // defined(WITH_SPS30_I2C)
     Serial.print(F("Temperature: "));
     Serial.println(temperature);
@@ -361,29 +371,31 @@ void setup() {
     Serial.println(lux);
 #endif // WITH_LUX
 #if defined(WITH_SPS30_I2C)
-    Serial.print("SPS30 serial: ");
-    Serial.println(sps30_serial);
-    Serial.print("PM  1.0: ");
-    Serial.println(sps30_data.mc_1p0);
-    Serial.print("PM  2.5: ");
-    Serial.println(sps30_data.mc_2p5);
-    Serial.print("PM  4.0: ");
-    Serial.println(sps30_data.mc_4p0);
-    Serial.print("PM 10.0: ");
-    Serial.println(sps30_data.mc_10p0);
-    Serial.print("NC  0.5: ");
-    Serial.println(sps30_data.nc_0p5);
-    Serial.print("NC  1.0: ");
-    Serial.println(sps30_data.nc_1p0);
-    Serial.print("NC  2.5: ");
-    Serial.println(sps30_data.nc_2p5);
-    Serial.print("NC  4.0: ");
-    Serial.println(sps30_data.nc_4p0);
-    Serial.print("NC 10.0: ");
-    Serial.println(sps30_data.nc_10p0);
+    if (!isnan(sps30_data.typical_particle_size)) {
+      Serial.print("SPS30 serial: ");
+      Serial.println(sps30_serial);
+      Serial.print("PM  1.0: ");
+      Serial.println(sps30_data.mc_1p0);
+      Serial.print("PM  2.5: ");
+      Serial.println(sps30_data.mc_2p5);
+      Serial.print("PM  4.0: ");
+      Serial.println(sps30_data.mc_4p0);
+      Serial.print("PM 10.0: ");
+      Serial.println(sps30_data.mc_10p0);
+      Serial.print("NC  0.5: ");
+      Serial.println(sps30_data.nc_0p5);
+      Serial.print("NC  1.0: ");
+      Serial.println(sps30_data.nc_1p0);
+      Serial.print("NC  2.5: ");
+      Serial.println(sps30_data.nc_2p5);
+      Serial.print("NC  4.0: ");
+      Serial.println(sps30_data.nc_4p0);
+      Serial.print("NC 10.0: ");
+      Serial.println(sps30_data.nc_10p0);
 
-    Serial.print("Typical particle size: ");
-    Serial.println(sps30_data.typical_particle_size);
+      Serial.print("Typical particle size: ");
+      Serial.println(sps30_data.typical_particle_size);
+    }
 #endif // defined(WITH_SPS30_I2C)
 
     Serial.flush();
@@ -406,16 +418,25 @@ void loop() {
   // We need to calculate how long we should sleep, so we need to know how long we were awake
   unsigned long startMillis = millis();
 
+  // Read battery early to allow using it for deciding whether to enable GPS
+  if (BATTERY_DIVIDER_RATIO)
+    vbatt = readVbatt();
+
   // Activate GPS every now and then to update our position
   if (updatesBeforeGpsUpdate == 0) {
-    writeLed(0x408080); // cyan
-    getPosition();
-    writeLed(0x000000); // off
-    updatesBeforeGpsUpdate = GPS_UPDATE_RATIO;
-    // Use the lowest datarate, to maximize range. This helps for
-    // debugging, since range problems can be more easily distinguished
-    // from other problems (lockups, downlink problems, etc).
-    LMIC_setDrTxpow(DR_SF12, 14);
+    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("GPS"))) {
+      writeLed(0x408080); // cyan
+      getPosition();
+      writeLed(0x000000); // off
+      updatesBeforeGpsUpdate = GPS_UPDATE_RATIO;
+      // Use the lowest datarate, to maximize range. This helps for
+      // debugging, since range problems can be more easily distinguished
+      // from other problems (lockups, downlink problems, etc).
+      LMIC_setDrTxpow(DR_SF12, 14);
+    } else {
+      // Clear gps fix to prevent sending stale data
+      memset(&gps_data, 0, sizeof(gps_data));
+    }
   } else {
     LMIC_setDrTxpow(DR_SF9, 14);
   }
@@ -428,14 +449,17 @@ void loop() {
 #ifdef WITH_LUX
   lux = readLux();
 #endif // WITH_LUX
-  if (BATTERY_DIVIDER_RATIO)
-    vbatt = readVbatt();
   if (SOLAR_DIVIDER_RATIO)
     vsolar = readVsolar();
 #if defined(WITH_SPS30_I2C)
-  writeLed(0xff00ff); // purple
-  sps30_data = readSps30();
-  writeLed(0x000000); // off
+  if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+    writeLed(0xff00ff); // purple
+    sps30_data = readSps30();
+    writeLed(0x000000); // off
+  } else {
+    // Marker to indicate we skipped the read
+    sps30_data.typical_particle_size = NAN;
+  }
 #endif // defined(WITH_SPS30_I2C)
 
   if (DEBUG)
@@ -552,26 +576,28 @@ void dumpData() {
   Serial.print(lux);
 #endif // WITH_LUX
 #if defined(WITH_SPS30_I2C)
-  Serial.print(", pm1.0=");
-  Serial.print(sps30_data.mc_1p0);
-  Serial.print(", pm2.5=");
-  Serial.print(sps30_data.mc_2p5);
-  Serial.print(", pm4.0=");
-  Serial.print(sps30_data.mc_4p0);
-  Serial.print(", pm10.0=");
-  Serial.print(sps30_data.mc_10p0);
-  Serial.print(", nc0.5=");
-  Serial.print(sps30_data.nc_0p5);
-  Serial.print(", nc1.0=");
-  Serial.print(sps30_data.nc_1p0);
-  Serial.print(", nc2.5=");
-  Serial.print(sps30_data.nc_2p5);
-  Serial.print(", nc4.0=");
-  Serial.print(sps30_data.nc_4p0);
-  Serial.print(", nc10.0=");
-  Serial.print(sps30_data.nc_10p0);
-  Serial.print(", typ_size=");
-  Serial.print(sps30_data.typical_particle_size);
+  if (!isnan(sps30_data.typical_particle_size)) {
+    Serial.print(", pm1.0=");
+    Serial.print(sps30_data.mc_1p0);
+    Serial.print(", pm2.5=");
+    Serial.print(sps30_data.mc_2p5);
+    Serial.print(", pm4.0=");
+    Serial.print(sps30_data.mc_4p0);
+    Serial.print(", pm10.0=");
+    Serial.print(sps30_data.mc_10p0);
+    Serial.print(", nc0.5=");
+    Serial.print(sps30_data.nc_0p5);
+    Serial.print(", nc1.0=");
+    Serial.print(sps30_data.nc_1p0);
+    Serial.print(", nc2.5=");
+    Serial.print(sps30_data.nc_2p5);
+    Serial.print(", nc4.0=");
+    Serial.print(sps30_data.nc_4p0);
+    Serial.print(", nc10.0=");
+    Serial.print(sps30_data.nc_10p0);
+    Serial.print(", typ_size=");
+    Serial.print(sps30_data.typical_particle_size);
+  }
 #endif // defined(WITH_SPS30_I2C)
   Serial.println();
   Serial.flush();
@@ -661,8 +687,10 @@ void queueData() {
   length += 2;
 #endif
 #ifdef WITH_SPS30_I2C
-  flags |= FLAG_WITH_PM;
-  length += 4;
+  if (!isnan(sps30_data.typical_particle_size)) {
+    flags |= FLAG_WITH_PM;
+    length += 4;
+  }
 #endif
 
 uint8_t extra_bits = 0;
@@ -715,8 +743,10 @@ uint8_t extra_bits = 0;
   packet.append(lux >> 2, 16);
 #endif
 #ifdef WITH_SPS30_I2C
-  packet.append(sps30_data.mc_2p5, 16);
-  packet.append(sps30_data.mc_10p0, 16);
+  if (!isnan(sps30_data.typical_particle_size)) {
+    packet.append(sps30_data.mc_2p5, 16);
+    packet.append(sps30_data.mc_10p0, 16);
+  }
 #endif
 
   if (BATTERY_DIVIDER_RATIO) {
@@ -730,18 +760,25 @@ uint8_t extra_bits = 0;
   }
 
 #ifdef WITH_SPS30_I2C
-  // Append extra fields
-  appendExtra(packet, sps30_data.mc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  appendExtra(packet, sps30_data.mc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  appendExtra(packet, sps30_data.mc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  appendExtra(packet, sps30_data.mc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  if (!isnan(sps30_data.typical_particle_size)) {
+    // Append extra fields
+    appendExtra(packet, sps30_data.mc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.mc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.mc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.mc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  appendExtra(packet, sps30_data.nc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  appendExtra(packet, sps30_data.nc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  appendExtra(packet, sps30_data.nc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
-  appendExtra(packet, sps30_data.nc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  appendExtra(packet, sps30_data.typical_particle_size * 1000 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.typical_particle_size * 1000 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  } else {
+    // When we did not read the sensor, still append zeroes, to keep the
+    // other extra fields in the same position.
+    for (uint8_t i = 0; i < 9; ++i)
+      appendExtra(packet, 0, SPS30_EXTRA_FIELD_BITS);
+  }
 #endif // WITH_SPS30_I2C
 
   if (SOLAR_DIVIDER_RATIO) {
@@ -813,6 +850,24 @@ uint16_t readVbatt() {
     return (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/1023;
 }
 
+/**
+ * Check if the battery voltage is high enough for power-hungry
+ * measurements. Return true if so, or print an error message and return
+ * false if not.
+ */
+bool batteryVoltageOk(uint16_t voltage, const __FlashStringHelper* device) {
+    if (voltage < MIN_BATT_VOLT) {
+        Serial.print(F("Battery voltage too low, skipping "));
+        Serial.print(device);
+        Serial.print(F(" ("));
+        Serial.print(voltage);
+        Serial.print(" < ");
+        Serial.print(MIN_BATT_VOLT);
+        Serial.println(" mV)");
+        return false;
+    }
+    return true;
+}
 
 #ifdef WITH_LUX
 uint32_t readLux()
