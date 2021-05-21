@@ -516,6 +516,14 @@ void dumpData() {
   Serial.print(temperature, 1);
   Serial.print(F(", hum="));
   Serial.print(humidity, 1);
+  if (BATTERY_DIVIDER_RATIO) {
+    Serial.print(", vbatt=");
+    Serial.print(vbatt);
+  }
+  if (SOLAR_DIVIDER_RATIO) {
+    Serial.print(", vsolar=");
+    Serial.print(vsolar);
+  }
   Serial.print(F(", vcc="));
   Serial.print(vcc, 1);
 #ifdef WITH_LUX
