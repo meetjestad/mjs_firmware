@@ -629,7 +629,18 @@ void getPosition()
 /**
  * Append an extra field to a packet being built.
  */
-void appendExtra(BitStream& packet, uint32_t value, size_t bits) {
+void appendExtra(BitStream& packet, uint32_t value, size_t max_bits) {
+  // __builtin_clz is only defined in terms of int/long/longlong, so
+  // check that our uint32_t value fits
+  static_assert(sizeof(unsigned long) >= sizeof(uint32_t), "Unexpected integer sizes");
+
+  // Calculate how much bits we really need to transmit the field (no
+  // point in transmitting leading zeroes). This uses __builtin_clz
+  // which returns the number of leading 0 bits, so reverse that to get
+  // the number of bits needed. It is undefined for 0, so always set the
+  // LSB of value to ensure bits will be at least one.
+  size_t bits = sizeof(unsigned long) * 8 - __builtin_clzl(value | 1);
+
   // First add the size of the field (minus one to allow a size of 1-32
   // rather than 0-31).
   packet.append(bits-1, EXTRA_SIZE_BITS);
@@ -738,9 +749,9 @@ uint8_t extra_bits = 0;
     appendExtra(packet, vsolar, SOLAR_EXTRA_FIELD_BITS);
   }
 
-  // Fill any remaining bits (from rounding up to whole bytes) with 1's,
-  // so they cannot be a valid field.
-  packet.append(0xFF, packet.free_bits());
+  // Fill any remaining bits in a partial byte with 1's, so they cannot
+  // be a valid extra field.
+  packet.append(0xFF, packet.free_bits() % 8);
 
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, packet.data(), packet.byte_size(), 0);
