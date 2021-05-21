@@ -650,10 +650,8 @@ void queueData() {
 #endif
 
   if (BATTERY_DIVIDER_RATIO) {
-    analogReference(BATTERY_DIVIDER_REF);
-    uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
     // Encoded in units of 20mv
-    uint8_t batt = (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/(20*1023);
+    uint8_t batt = readVbatt() / 20;
     // Shift down, zero means 1V now
     if (batt >= 50)
       packet.append(batt - 50, 8);
@@ -691,10 +689,8 @@ void queueData() {
 #endif // WITH_SPS30_I2C
 
   if (SOLAR_DIVIDER_RATIO) {
-    analogReference(SOLAR_DIVIDER_REF);
-    uint16_t reading = analogRead(SOLAR_DIVIDER_PIN);
     // Encoded in units of 1mv
-    uint16_t solar = (uint32_t)(reading*SOLAR_DIVIDER_RATIO*SOLAR_DIVIDER_REF_MV)/1023;
+    uint16_t solar = readVsolar();
     packet.append(SOLAR_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
     packet.append(solar, SOLAR_EXTRA_FIELD_BITS);
   }
@@ -746,6 +742,19 @@ uint16_t readVcc()
   return STM32L0.getVDDA() * 1000;
   #endif
 }
+
+uint16_t readVsolar() {
+    analogReference(SOLAR_DIVIDER_REF);
+    uint16_t reading = analogRead(SOLAR_DIVIDER_PIN);
+    return (uint32_t)(reading*SOLAR_DIVIDER_RATIO*SOLAR_DIVIDER_REF_MV)/1023;
+}
+
+uint16_t readVbatt() {
+    analogReference(BATTERY_DIVIDER_REF);
+    uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
+    return (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/1023;
+}
+
 
 #ifdef WITH_LUX
 uint32_t readLux()
