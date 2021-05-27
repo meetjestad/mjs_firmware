@@ -7,11 +7,7 @@
    including, but not limited to, copying, modification and redistribution.
    NO WARRANTY OF ANY KIND IS PROVIDED.
 
-   In order to compile the following libraries need to be installed:
-   - SparkFunHTU21D: https://github.com/sparkfun/SparkFun_HTU21D_Breakout_Arduino_Library
-   - NeoGPS (mjs-specific fork): https://github.com/meetjestad/NeoGPS
-   - Adafruit_SleepyDog: https://github.com/adafruit/Adafruit_SleepyDog
-   - lmic (mjs-specific fork): https://github.com/meetjestad/arduino-lmic
+   See README.md for the required libraries and other components for this sketch.
  *******************************************************************************/
 
 // include external libraries
