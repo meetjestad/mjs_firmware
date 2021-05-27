@@ -8,8 +8,8 @@ central collection.
 More information about het project, as well as the data collected from
 the sensors, see http://www.meetjestad.net
 
-USB-to-serial board for programming
------------------------------------
+USB-to-serial board for programming (original board only)
+---------------------------------------------------------
 To program the sensor boards, you will need to connect them to a
 computer. This is done through a serial connection, typically using a
 cheap USB-to-serial converter (often called a "programmer", though it is
@@ -66,20 +66,30 @@ assumes your sketchbook directory is called "Arduino"):
       Arduino/libraries/NeoGPS
       Arduino/mjs_firmware
 
+When using the MJS2020 board, you additionally need to install the board
+files using the IDE itself:
+ 1. Open the Arduino IDE, and go to File -> Preferences.
+ 2. In the "Additional board manager URLs", add the following url:
+    `https://github.com/meetjestad/mjs_boards/raw/master/package_meetjestad.net_index.json`
+ 3. Close the preferences, and open Tools -> Board -> Boards Manager...
+ 4. Find the "Meet je stad! STM32L0 Boards" in the list, and click Install.
+
 Next, to actually compile and upload the sketch:
  1. Connect the sensor board to your computer using your USB-to-serial
-    converter. Make sure to use the correct orientation, check the
-    labels on both boards.
+    converter (original board) or USB-C cable (MJS2020 board). Make sure
+    to use the correct orientation, check the labels on both boards.
  2. Start the Arduino IDE and load the `mjs_firmware` sketch from your
     sketchbook (which should be reachable through File -> Sketchbook).
     If it is not listed, the `mjs_firmware` directory from the zip
     bundle was not installed correctly.
- 3. Select the "MJS Meetstation" under Tools -> Board. If it is not
+ 3. Select your board under Tools -> Board. For the original board,
+    select the "MJS Meetstation", for MJS2020 select e.g. MJS2020-PROTO3
+    (or another version if you have an older proto board) If it is not
     listed, the `hardware` directory from the bundle zip was not
     correctly installed.
- 4. Select the right port for your USB-to-serial adaptar under Tools ->
-    Port. Hint: check the port menu before and after connecting the
-    adapter, to see what port belongs to it.
+ 4. Select the right port under Tools -> Port. Hint: check the port menu
+    before and after connecting the usb cable, to see what port belongs
+    to it.
  5. Click the "Upload" icon in the toolbar (or select Sketch -> Upload).
     This should compile the sketch and upload it to the board.
 
@@ -97,13 +107,25 @@ The bundle zip file contains the following components:
    Breakout](https://github.com/sparkfun/SparkFun_HTU21D_Breakout_Arduino_Library)
    Arduino library. This is used without mjs-specific modifications.
  - The [Adafruit_SleepyDog](https://github.com/adafruit/Adafruit_SleepyDog)
-   Arduino library. This is used without mjs-specific modifications.
+   Arduino library. This is used without mjs-specific modifications. It
+   is needed for the original board only.
  - The [NeoGPS](https://github.com/meetjestad/NeoGPS/tree/mjs) Arduino
    library (mjs branch). This library is modified for mjs, to configure
    it for the GPS used.
  - The [IBM LMIC](https://github.com/meetjestad/arduino-lmic/tree/mjs) Arduino
    (mjs branch). This library is modified for mjs, to configure it to
-   remove unused parts and save some space.
+   remove unused parts and save some space. This is needed for the
+   original board only.
+ - The [BasicMAC](https://github.com/meetjestad/basicmac/tree/mjs)
+   library. This is a continuation of LMIC that supports the
+   radio on the MJS2020 board, but is too big to fit on the original
+   board. Note that the repository is not a ready-made Arduino library,
+   but you need to run as script to convert it. This library is modified
+   for mjs, though at some point the modifications can probably be
+   merged back. This is needed for the MJS2020 board only.
+ - The [arduino-sps](https://github.com/meetjestad/arduino-sps/tree/mjs)
+   Arduino library. This library is modified of for mjs, to use the
+   second I²C-bus on the board. This is needed for MJS2020 only.
  - The `mjs_firmware` sketch, which can be cloned or downloaded from
    this repository.
 
@@ -121,10 +143,12 @@ Hardware
 --------
 The hardware that this sketch is intended to run on is documented at
 https://github.com/meetjestad/mjs_pcb. This sketch expects a node id and
-encryption keys to be preprogrammed into EEPROM, see
-https://github.com/meetjestad/mjs_programmer for the tool that is used
-for this. All microcontrollers used in the workshops of the Meetjestad
-project, are already preprogrammed and labeled with their identifier.
+encryption keys to be preprogrammed into EEPROM (original board) or
+Flash (MJS2020 board), see https://github.com/meetjestad/mjs_programmer
+(original board) or https://github.com/meetjestad/mjs_bootstrap (MJS2020
+board) for the tool that is used for this. All microcontrollers used in
+the workshops of the Meetjestad project, are already preprogrammed and
+labeled with their identifier.
 
 History of changes
 ------------------
