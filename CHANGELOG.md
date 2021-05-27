@@ -1,3 +1,16 @@
+Changes in v5
+=============
+ - Support for the MJS2020 board.
+ - Support for the Sensirion SPS30 particle sensor (only tested on
+   MJS2020).
+ - Do a join directly at startup, before the first GPS is first enabled.
+ - Print more human-readable station name on startup.
+ - Skip reading GPS and SPS30 sensor when battery is low.
+ - Fix buffer overflow when reading LoRaWAN keys.
+ - Fix use of uninitialized memory and buffer overflow when reading GPS.
+ - Various small code cleanups and improvements (without behavioral
+   changes).
+
 Changes in v4
 =============
  - Switch to a slightly improved packet format. This new format allows
