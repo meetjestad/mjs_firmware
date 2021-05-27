@@ -99,6 +99,10 @@ uint8_t const LED_PIN = LED_BUILTIN;
 uint8_t const LED_ON = LOW;
 uint8_t const LUX_HIGH_PIN = 0; // TODO: PA6 not mapped?
 uint8_t const LUX_PIN = 0; // TODO: PC3 not mapped?
+
+// Enable this define when an SPS30 is attached over I²C
+#define WITH_SPS30_I2C
+
 #else
   #error "Unknown board"
 #endif
@@ -106,9 +110,6 @@ uint8_t const LUX_PIN = 0; // TODO: PC3 not mapped?
 // Enable this define when a light sensor is attached
 // TODO: Support on MJS2020
 //#define WITH_LUX
-
-// Enable this define when an SPS30 is attached over I²C
-#define WITH_SPS30_I2C
 
 // These values define the sensitivity and calibration of the PAR / Lux
 // measurement.
