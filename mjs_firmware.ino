@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 // include external libraries
+#include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <SparkFunHTU21D.h>
@@ -42,6 +43,9 @@ const uint8_t FIRMWARE_VERSION = 255;
 
 // Baudrate for hardware serial port
 const uint16_t SERIAL_BAUD = 9600;
+
+// When this voltage is reached, skip power hungry sensors
+uint16_t const MIN_BATT_VOLT = 3300;
 
 #if defined(ARDUINO_MJS_V1)
 
@@ -137,6 +141,9 @@ NMEAGPS gps;
 float temperature;
 float humidity;
 uint16_t vcc = 0;
+uint16_t vbatt = 0;
+uint16_t vsolar = 0;
+
 #ifdef WITH_LUX
 uint32_t lux = 0;
 #endif
@@ -170,6 +177,27 @@ uint32_t updatesBeforeGpsUpdate = 0;
 gps_fix gps_data;
 
 uint8_t const LORA_PORT = 13;
+
+/**
+ * Forward declarations for functions. Not strictly needed for Arduino,
+ * but makes the code easier to use with IDEs that do less
+ * preprocessing.
+ */
+void doSleep(uint32_t time);
+void dumpData();
+void getPosition();
+void queueData();
+uint16_t readVcc();
+uint16_t readVsolar();
+uint16_t readVbatt();
+bool batteryVoltageOk(uint16_t voltage, const __FlashStringHelper* device);
+#ifdef WITH_LUX
+uint32_t readLux():
+#endif // WITH_LUX
+#ifdef WITH_SPS30_I2C
+struct sps30_measurement readSps30();
+#endif // WITH_SPS30_I2C
+void writeLed(uint32_t rgb);
 
 #if defined(SERIAL_IS_SERIALUSB) || defined(SERIAL_IS_CONFIGURABLE)
 bool wait_for_usb_configured(unsigned long timeout) {
@@ -292,28 +320,50 @@ void setup() {
   if (DEBUG) {
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
+    if (BATTERY_DIVIDER_RATIO)
+      vbatt = readVbatt();
+    if (SOLAR_DIVIDER_RATIO)
+      vsolar = readVsolar();
     vcc = readVcc();
 #ifdef WITH_LUX
     lux = readLux();
 #endif
+
 #if defined(WITH_SPS30_I2C)
-    #if defined(ARDUINO_MJS2020)
-    digitalWrite(PIN_ENABLE_5V, HIGH);
-    #endif // defined(ARDUINO_MJS2020)
-    delay(500);
     char sps30_serial[SPS30_MAX_SERIAL_LEN];
-    int16_t ret = sps30_get_serial(sps30_serial);
-    if (ret < 0) {
-      Serial.print("Error reading SPS30 serial: ");
-      Serial.println(ret);
+    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+      #if defined(ARDUINO_MJS2020)
+      digitalWrite(PIN_ENABLE_5V, HIGH);
+      #endif // defined(ARDUINO_MJS2020_PROTO2)
+      delay(500);
+      int16_t ret = sps30_get_serial(sps30_serial);
+      if (ret < 0) {
+          Serial.print(F("Error reading SPS30 serial: "));
+          Serial.println(ret);
+      }
+      // Leave 5V on, readSps30 turns it off
+      sps30_data = readSps30();
+    } else {
+      // Marker to indicate we skipped the read
+      sps30_data.typical_particle_size = NAN;
     }
-    // Leave 5V on, readSps30 turns it off
-    sps30_data = readSps30();
 #endif // defined(WITH_SPS30_I2C)
     Serial.print(F("Temperature: "));
     Serial.println(temperature);
     Serial.print(F("Humidity: "));
     Serial.println(humidity);
+    if (BATTERY_DIVIDER_RATIO) {
+      Serial.print(F("Battery Divider Ratio: "));
+      Serial.println(BATTERY_DIVIDER_RATIO);
+      Serial.print(F("Vbatt: "));
+      Serial.println(vbatt);
+    }
+    if (SOLAR_DIVIDER_RATIO) {
+      Serial.print(F("Solar Divider Ratio: "));
+      Serial.println(SOLAR_DIVIDER_RATIO);
+      Serial.print(F("Vsolar: "));
+      Serial.println(vsolar);
+    }
     Serial.print(F("Vcc: "));
     Serial.println(vcc);
 #ifdef WITH_LUX
@@ -321,39 +371,33 @@ void setup() {
     Serial.println(lux);
 #endif // WITH_LUX
 #if defined(WITH_SPS30_I2C)
-    Serial.print("SPS30 serial: ");
-    Serial.println(sps30_serial);
-    Serial.print("PM  1.0: ");
-    Serial.println(sps30_data.mc_1p0);
-    Serial.print("PM  2.5: ");
-    Serial.println(sps30_data.mc_2p5);
-    Serial.print("PM  4.0: ");
-    Serial.println(sps30_data.mc_4p0);
-    Serial.print("PM 10.0: ");
-    Serial.println(sps30_data.mc_10p0);
-    Serial.print("NC  0.5: ");
-    Serial.println(sps30_data.nc_0p5);
-    Serial.print("NC  1.0: ");
-    Serial.println(sps30_data.nc_1p0);
-    Serial.print("NC  2.5: ");
-    Serial.println(sps30_data.nc_2p5);
-    Serial.print("NC  4.0: ");
-    Serial.println(sps30_data.nc_4p0);
-    Serial.print("NC 10.0: ");
-    Serial.println(sps30_data.nc_10p0);
+    if (!isnan(sps30_data.typical_particle_size)) {
+      Serial.print("SPS30 serial: ");
+      Serial.println(sps30_serial);
+      Serial.print("PM  1.0: ");
+      Serial.println(sps30_data.mc_1p0);
+      Serial.print("PM  2.5: ");
+      Serial.println(sps30_data.mc_2p5);
+      Serial.print("PM  4.0: ");
+      Serial.println(sps30_data.mc_4p0);
+      Serial.print("PM 10.0: ");
+      Serial.println(sps30_data.mc_10p0);
+      Serial.print("NC  0.5: ");
+      Serial.println(sps30_data.nc_0p5);
+      Serial.print("NC  1.0: ");
+      Serial.println(sps30_data.nc_1p0);
+      Serial.print("NC  2.5: ");
+      Serial.println(sps30_data.nc_2p5);
+      Serial.print("NC  4.0: ");
+      Serial.println(sps30_data.nc_4p0);
+      Serial.print("NC 10.0: ");
+      Serial.println(sps30_data.nc_10p0);
 
-    Serial.print("Typical partical size: ");
-    Serial.println(sps30_data.typical_particle_size);
+      Serial.print("Typical particle size: ");
+      Serial.println(sps30_data.typical_particle_size);
+    }
 #endif // defined(WITH_SPS30_I2C)
 
-    if (BATTERY_DIVIDER_RATIO) {
-      Serial.print(F("Battery Divider Ratio: "));
-      Serial.println(BATTERY_DIVIDER_RATIO);
-    }
-    if (SOLAR_DIVIDER_RATIO) {
-      Serial.print(F("Solar Divider Ratio: "));
-      Serial.println(SOLAR_DIVIDER_RATIO);
-    }
     Serial.flush();
   }
 
@@ -374,16 +418,25 @@ void loop() {
   // We need to calculate how long we should sleep, so we need to know how long we were awake
   unsigned long startMillis = millis();
 
+  // Read battery early to allow using it for deciding whether to enable GPS
+  if (BATTERY_DIVIDER_RATIO)
+    vbatt = readVbatt();
+
   // Activate GPS every now and then to update our position
   if (updatesBeforeGpsUpdate == 0) {
-    writeLed(0x408080); // cyan
-    getPosition();
-    writeLed(0x000000); // off
-    updatesBeforeGpsUpdate = GPS_UPDATE_RATIO;
-    // Use the lowest datarate, to maximize range. This helps for
-    // debugging, since range problems can be more easily distinguished
-    // from other problems (lockups, downlink problems, etc).
-    LMIC_setDrTxpow(DR_SF12, 14);
+    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("GPS"))) {
+      writeLed(0x408080); // cyan
+      getPosition();
+      writeLed(0x000000); // off
+      updatesBeforeGpsUpdate = GPS_UPDATE_RATIO;
+      // Use the lowest datarate, to maximize range. This helps for
+      // debugging, since range problems can be more easily distinguished
+      // from other problems (lockups, downlink problems, etc).
+      LMIC_setDrTxpow(DR_SF12, 14);
+    } else {
+      // Clear gps fix to prevent sending stale data
+      memset(&gps_data, 0, sizeof(gps_data));
+    }
   } else {
     LMIC_setDrTxpow(DR_SF9, 14);
   }
@@ -396,10 +449,17 @@ void loop() {
 #ifdef WITH_LUX
   lux = readLux();
 #endif // WITH_LUX
+  if (SOLAR_DIVIDER_RATIO)
+    vsolar = readVsolar();
 #if defined(WITH_SPS30_I2C)
-  writeLed(0xff00ff); // purple
-  sps30_data = readSps30();
-  writeLed(0x000000); // off
+  if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+    writeLed(0xff00ff); // purple
+    sps30_data = readSps30();
+    writeLed(0x000000); // off
+  } else {
+    // Marker to indicate we skipped the read
+    sps30_data.typical_particle_size = NAN;
+  }
 #endif // defined(WITH_SPS30_I2C)
 
   if (DEBUG)
@@ -501,6 +561,14 @@ void dumpData() {
   Serial.print(temperature, 1);
   Serial.print(F(", hum="));
   Serial.print(humidity, 1);
+  if (BATTERY_DIVIDER_RATIO) {
+    Serial.print(", vbatt=");
+    Serial.print(vbatt);
+  }
+  if (SOLAR_DIVIDER_RATIO) {
+    Serial.print(", vsolar=");
+    Serial.print(vsolar);
+  }
   Serial.print(F(", vcc="));
   Serial.print(vcc, 1);
 #ifdef WITH_LUX
@@ -508,26 +576,28 @@ void dumpData() {
   Serial.print(lux);
 #endif // WITH_LUX
 #if defined(WITH_SPS30_I2C)
-  Serial.print(", pm1.0=");
-  Serial.print(sps30_data.mc_1p0);
-  Serial.print(", pm2.5=");
-  Serial.print(sps30_data.mc_2p5);
-  Serial.print(", pm4.0=");
-  Serial.print(sps30_data.mc_4p0);
-  Serial.print(", pm10.0=");
-  Serial.print(sps30_data.mc_10p0);
-  Serial.print(", nc0.5=");
-  Serial.print(sps30_data.nc_0p5);
-  Serial.print(", nc1.0=");
-  Serial.print(sps30_data.nc_1p0);
-  Serial.print(", nc2.5=");
-  Serial.print(sps30_data.nc_2p5);
-  Serial.print(", nc4.0=");
-  Serial.print(sps30_data.nc_4p0);
-  Serial.print(", nc10.0=");
-  Serial.print(sps30_data.nc_10p0);
-  Serial.print(", typ_size=");
-  Serial.print(sps30_data.typical_particle_size);
+  if (!isnan(sps30_data.typical_particle_size)) {
+    Serial.print(", pm1.0=");
+    Serial.print(sps30_data.mc_1p0);
+    Serial.print(", pm2.5=");
+    Serial.print(sps30_data.mc_2p5);
+    Serial.print(", pm4.0=");
+    Serial.print(sps30_data.mc_4p0);
+    Serial.print(", pm10.0=");
+    Serial.print(sps30_data.mc_10p0);
+    Serial.print(", nc0.5=");
+    Serial.print(sps30_data.nc_0p5);
+    Serial.print(", nc1.0=");
+    Serial.print(sps30_data.nc_1p0);
+    Serial.print(", nc2.5=");
+    Serial.print(sps30_data.nc_2p5);
+    Serial.print(", nc4.0=");
+    Serial.print(sps30_data.nc_4p0);
+    Serial.print(", nc10.0=");
+    Serial.print(sps30_data.nc_10p0);
+    Serial.print(", typ_size=");
+    Serial.print(sps30_data.typical_particle_size);
+  }
 #endif // defined(WITH_SPS30_I2C)
   Serial.println();
   Serial.flush();
@@ -582,6 +652,27 @@ void getPosition()
   GPS_SERIAL.end();
 }
 
+/**
+ * Append an extra field to a packet being built.
+ */
+void appendExtra(BitStream& packet, uint32_t value, size_t max_bits) {
+  // __builtin_clz is only defined in terms of int/long/longlong, so
+  // check that our uint32_t value fits
+  static_assert(sizeof(unsigned long) >= sizeof(uint32_t), "Unexpected integer sizes");
+
+  // Calculate how much bits we really need to transmit the field (no
+  // point in transmitting leading zeroes). This uses __builtin_clz
+  // which returns the number of leading 0 bits, so reverse that to get
+  // the number of bits needed. It is undefined for 0, so always set the
+  // LSB of value to ensure bits will be at least one.
+  size_t bits = sizeof(unsigned long) * 8 - __builtin_clzl(value | 1);
+
+  // First add the size of the field (minus one to allow a size of 1-32
+  // rather than 0-31).
+  packet.append(bits-1, EXTRA_SIZE_BITS);
+  packet.append(value, bits);
+}
+
 void queueData() {
   uint8_t length = 12;
   uint8_t flags = 0;
@@ -596,9 +687,13 @@ void queueData() {
   length += 2;
 #endif
 #ifdef WITH_SPS30_I2C
-  flags |= FLAG_WITH_PM;
-  length += 4;
+  if (!isnan(sps30_data.typical_particle_size)) {
+    flags |= FLAG_WITH_PM;
+    length += 4;
+  }
 #endif
+
+uint8_t extra_bits = 0;
 
 #ifdef WITH_SPS30_I2C
   // Add *all* PM data as extra fields. This defines the extra size
@@ -607,15 +702,18 @@ void queueData() {
   // This allows up to 6553.5 μg/m³ (datasheet says up to 1000), up to
   // 6553.5 #/cm³ (datasheet says up to 3000) and up to
   // 65535 nm typical particle size (datasheet suggests up to 10).
-  const uint8_t EXTRA_FIELD_BITS = 15;
-  const uint8_t extra_bits = 9*(EXTRA_SIZE_BITS+EXTRA_FIELD_BITS);
-  length += (extra_bits + 7)/8;
-  flags |= FLAG_WITH_EXTRA;
+  const uint8_t SPS30_EXTRA_FIELD_BITS = 15;
+  extra_bits += 9 * (EXTRA_SIZE_BITS + SPS30_EXTRA_FIELD_BITS);
 #endif // WITH_SPS30_I2C
+
   const uint8_t SOLAR_EXTRA_FIELD_BITS = 15;
   if (SOLAR_DIVIDER_RATIO) {
-    length += SOLAR_EXTRA_FIELD_BITS;
+    extra_bits += EXTRA_SIZE_BITS + SOLAR_EXTRA_FIELD_BITS;
+  }
+
+  if (extra_bits) {
     flags |= FLAG_WITH_EXTRA;
+    length += (extra_bits + 7)/8;
   }
 
   uint8_t data[length];
@@ -645,15 +743,15 @@ void queueData() {
   packet.append(lux >> 2, 16);
 #endif
 #ifdef WITH_SPS30_I2C
-  packet.append(sps30_data.mc_2p5, 16);
-  packet.append(sps30_data.mc_10p0, 16);
+  if (!isnan(sps30_data.typical_particle_size)) {
+    packet.append(sps30_data.mc_2p5, 16);
+    packet.append(sps30_data.mc_10p0, 16);
+  }
 #endif
 
   if (BATTERY_DIVIDER_RATIO) {
-    analogReference(BATTERY_DIVIDER_REF);
-    uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
     // Encoded in units of 20mv
-    uint8_t batt = (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/(20*1023);
+    uint8_t batt = vbatt / 20;
     // Shift down, zero means 1V now
     if (batt >= 50)
       packet.append(batt - 50, 8);
@@ -662,42 +760,35 @@ void queueData() {
   }
 
 #ifdef WITH_SPS30_I2C
-  // Append extra fields. For each field, first add the size of the
-  // field (minus on to allow a size of 1-32 rather than 0-31).
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_1p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_2p5 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_4p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.mc_10p0 * 10 + 0.5, EXTRA_FIELD_BITS);
+  if (!isnan(sps30_data.typical_particle_size)) {
+    // Append extra fields
+    appendExtra(packet, sps30_data.mc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.mc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.mc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.mc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_1p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_2p5 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_4p0 * 10 + 0.5, EXTRA_FIELD_BITS);
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.nc_10p0 * 10 + 0.5, EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_1p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_2p5 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_4p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
+    appendExtra(packet, sps30_data.nc_10p0 * 10 + 0.5, SPS30_EXTRA_FIELD_BITS);
 
-  packet.append(EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-  packet.append(sps30_data.typical_particle_size * 1000 + 0.5, EXTRA_FIELD_BITS);
-
-  // Fill any remaining bits (from rounding up to whole bytes) with 1's,
-  // so they cannot be a valid field.
-  packet.append(0xff, packet.free_bits());
+    appendExtra(packet, sps30_data.typical_particle_size * 1000 + 0.5, SPS30_EXTRA_FIELD_BITS);
+  } else {
+    // When we did not read the sensor, still append zeroes, to keep the
+    // other extra fields in the same position.
+    for (uint8_t i = 0; i < 9; ++i)
+      appendExtra(packet, 0, SPS30_EXTRA_FIELD_BITS);
+  }
 #endif // WITH_SPS30_I2C
 
   if (SOLAR_DIVIDER_RATIO) {
-    analogReference(SOLAR_DIVIDER_REF);
-    uint16_t reading = analogRead(SOLAR_DIVIDER_PIN);
     // Encoded in units of 1mv
-    uint16_t solar = (uint32_t)(reading*SOLAR_DIVIDER_RATIO*SOLAR_DIVIDER_REF_MV)/1023;
-    packet.append(SOLAR_EXTRA_FIELD_BITS-1, EXTRA_SIZE_BITS);
-    packet.append(solar, SOLAR_EXTRA_FIELD_BITS);
+    appendExtra(packet, vsolar, SOLAR_EXTRA_FIELD_BITS);
   }
+
+  // Fill any remaining bits in a partial byte with 1's, so they cannot
+  // be a valid extra field.
+  packet.append(0xFF, packet.free_bits() % 8);
 
   // Prepare upstream data transmission at the next possible time.
   LMIC_setTxData2(LORA_PORT, packet.data(), packet.byte_size(), 0);
@@ -745,6 +836,37 @@ uint16_t readVcc()
   #elif defined(ARDUINO_ARCH_STM32L0)
   return STM32L0.getVDDA() * 1000;
   #endif
+}
+
+uint16_t readVsolar() {
+    analogReference(SOLAR_DIVIDER_REF);
+    uint16_t reading = analogRead(SOLAR_DIVIDER_PIN);
+    return (uint32_t)(reading*SOLAR_DIVIDER_RATIO*SOLAR_DIVIDER_REF_MV)/1023;
+}
+
+uint16_t readVbatt() {
+    analogReference(BATTERY_DIVIDER_REF);
+    uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
+    return (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/1023;
+}
+
+/**
+ * Check if the battery voltage is high enough for power-hungry
+ * measurements. Return true if so, or print an error message and return
+ * false if not.
+ */
+bool batteryVoltageOk(uint16_t voltage, const __FlashStringHelper* device) {
+    if (voltage < MIN_BATT_VOLT) {
+        Serial.print(F("Battery voltage too low, skipping "));
+        Serial.print(device);
+        Serial.print(F(" ("));
+        Serial.print(voltage);
+        Serial.print(" < ");
+        Serial.print(MIN_BATT_VOLT);
+        Serial.println(" mV)");
+        return false;
+    }
+    return true;
 }
 
 #ifdef WITH_LUX
