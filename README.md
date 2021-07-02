@@ -93,6 +93,48 @@ Next, to actually compile and upload the sketch:
  5. Click the "Upload" icon in the toolbar (or select Sketch -> Upload).
     This should compile the sketch and upload it to the board.
 
+Debugging with serial port
+--------------------------
+When it runs, the firmare generates some debug info about what it is
+doing, which can be helpful to diagnose problems. You can access this
+serial output using the "Serial Monitor" in the Arduino IDE, or any
+other serial terminal program running on your computer.
+
+To connect to the serial port, you have to select the correct port
+(under Tools -> Port) first, in the same way as you would do for
+uploading firmware (see above).
+
+For the original board, the serial connection needs an USB-to-serial
+adapter. The baudrate configred in the serial monitor must be 9600. When
+you open the serial monitor, the board will be reset automatically, so
+you will always be able to see the startup output.
+
+For the MJS2020 board, the serial connection can be made using the
+on-board USB-C connector directly. The baudrate configured in the serial
+monitor does not matter (it is a virtual serial connection only). It is
+important that you **open the serial port within 10 seconds of startup**
+(e.g. after enabling power, or pressing the reset button). If the serial
+monitor is not opened within this time, the board will decide to *not*
+print anything to the serial port, even if you would open the port
+later. Also, once the board goes to sleep, the serial port is completely
+shutdown to save power.
+
+Board status through LED color (MJS2020 only)
+---------------------------------------------
+The MJS2020 board has a multi-color LED on the board that can be used to
+see what the status is, especially during startup.
+
+The LED is:
+ - red while waiting for USB/Serial (max 10s)
+ - orange while doing initial sensor readings
+ - yellow while waiting for TTN activation
+ - cyan while waiting for a GPS fix
+ - purple while reading the SPS030 sensor
+ - blue when doing LoRaWAN transmission
+
+In all other cases (including when sleeping, which will be most of the
+time), the LED is off to save power.
+
 Advanced usage
 --------------
 If you are more familiar with Arduino and programming, you might want to
