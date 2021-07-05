@@ -6,7 +6,7 @@ sensors and a LoRa radio module they use to send their readings to a
 central collection.
 
 More information about het project, as well as the data collected from
-the sensors, see http://www.meetjestad.net
+the sensors, see https://www.meetjestad.net
 
 USB-to-serial board for programming (original board only)
 ---------------------------------------------------------
@@ -38,7 +38,7 @@ does not neccesarily contain the most recent version from this
 repository, but it usually contains a recent stable version.
 
 To set this up:
- 1. Install the Arduino IDE. It can be downloaded from http://arduino.cc.
+ 1. Install the Arduino IDE. It can be downloaded from https://arduino.cc.
 
     Note that you need the (offline) Arduino IDE, not the (online)
     Arduino web editor (the latter only works for official Arduino
@@ -48,7 +48,7 @@ To set this up:
     "Sketchbook location" at the top. By default, the sketchbook is a
     directory called "Arduino" in your documents directory or homedir.
  3. Download the zip bundle:
-    http://www.meetjestad.net/meten/files/arduino-bundle-v5.zip
+    https://www.meetjestad.net/meten/files/arduino-bundle-v5.zip
  4. Unpack the zipfile into your sketchbook directory. The zipfile contains
     a directory called "hardware" and "libraries", which may already
     exist inside your sketchbook. If so, you should merge their
