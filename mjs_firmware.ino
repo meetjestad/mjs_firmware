@@ -331,7 +331,7 @@ void setup() {
     if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
       #if defined(ARDUINO_MJS2020)
       digitalWrite(PIN_ENABLE_5V, HIGH);
-      #endif // defined(ARDUINO_MJS2020_PROTO2)
+      #endif // defined(ARDUINO_MJS2020)
       delay(500);
       int16_t ret = sps30_get_serial(sps30_serial);
       if (ret < 0) {
