@@ -41,7 +41,7 @@ const uint8_t FIRMWARE_VERSION = 255;
 const uint16_t SERIAL_BAUD = 9600;
 
 // When this voltage is reached, skip power hungry sensors
-uint16_t const MIN_BATT_VOLT = 3300;
+uint16_t const MIN_BATT_VOLT = 3400;
 
 #if defined(ARDUINO_MJS_V1)
 
@@ -50,14 +50,19 @@ uint16_t const MIN_BATT_VOLT = 3300;
 // 0.0 means not to measure the voltage. On first generation boards, this
 // should only be enabled when the AREF pin of the microcontroller was
 // disconnected.
-float const BATTERY_DIVIDER_RATIO = 0.0;
-//float const BATTERY_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
+// Measuring the battery voltage is required for disabling GPS and PM measurements when the battery voltage is low.
+// float const BATTERY_DIVIDER_RATIO = 0.0;
+float const BATTERY_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
 uint8_t const BATTERY_DIVIDER_PIN = A0;
 auto const BATTERY_DIVIDER_REF = INTERNAL;
 uint16_t const BATTERY_DIVIDER_REF_MV = 1137;
 
-float const SOLAR_DIVIDER_RATIO = 0;
-uint8_t const SOLAR_DIVIDER_PIN = 0;
+// On a v1-v3 board, measure the solar panel voltage using pin A1.
+// The solar panel + can be connected to the + battery pin with a 1N4007 or similar diode in between.
+// When not used (or pin A1 is used for something else), set to 0.0.
+// float const SOLAR_DIVIDER_RATIO = 0.0;
+float const SOLAR_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
+uint8_t const SOLAR_DIVIDER_PIN = A1;
 auto const SOLAR_DIVIDER_REF = INTERNAL;
 uint16_t const SOLAR_DIVIDER_REF_MV = 1137;
 
@@ -138,7 +143,7 @@ NMEAGPS gps;
 float temperature;
 float humidity;
 uint16_t vcc = 0;
-uint16_t vbatt = 0;
+uint16_t vbatt = 9999;
 uint16_t vsolar = 0;
 
 #ifdef WITH_LUX
@@ -310,7 +315,7 @@ void setup() {
   htu.begin();
 
   #if defined(WITH_SPS30_I2C)
-    sensirion_i2c_init();
+  sensirion_i2c_init();   // battery voltage check ignored here
   #endif
 
 
@@ -318,7 +323,7 @@ void setup() {
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
     if (BATTERY_DIVIDER_RATIO)
-      vbatt = readVbatt();
+      readVbatt();   // lowers vbatt
     if (SOLAR_DIVIDER_RATIO)
       vsolar = readVsolar();
     vcc = readVcc();
@@ -328,7 +333,7 @@ void setup() {
 
 #if defined(WITH_SPS30_I2C)
     char sps30_serial[SPS30_MAX_SERIAL_LEN];
-    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(readVbatt(), F("SPS30"))) {
       #if defined(ARDUINO_MJS2020)
       digitalWrite(PIN_ENABLE_5V, HIGH);
       #endif // defined(ARDUINO_MJS2020)
@@ -353,7 +358,7 @@ void setup() {
       Serial.print(F("Battery Divider Ratio: "));
       Serial.println(BATTERY_DIVIDER_RATIO);
       Serial.print(F("Vbatt: "));
-      Serial.println(vbatt);
+      Serial.println(readVbatt());   // current value
     }
     if (SOLAR_DIVIDER_RATIO) {
       Serial.print(F("Solar Divider Ratio: "));
@@ -417,7 +422,7 @@ void loop() {
 
   // Read battery early to allow using it for deciding whether to enable GPS
   if (BATTERY_DIVIDER_RATIO)
-    vbatt = readVbatt();
+    readVbatt();   // sets vbatt to minimum
 
   // Activate GPS every now and then to update our position
   if (updatesBeforeGpsUpdate == 0) {
@@ -449,7 +454,7 @@ void loop() {
   if (SOLAR_DIVIDER_RATIO)
     vsolar = readVsolar();
 #if defined(WITH_SPS30_I2C)
-  if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+  if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(readVbatt(), F("SPS30"))) {
     writeLed(0xff00ff); // purple
     sps30_data = readSps30();
     writeLed(0x000000); // off
@@ -560,7 +565,7 @@ void dumpData() {
   Serial.print(humidity, 1);
   if (BATTERY_DIVIDER_RATIO) {
     Serial.print(", vbatt=");
-    Serial.print(vbatt);
+    Serial.print(readVbatt());   // current value
   }
   if (SOLAR_DIVIDER_RATIO) {
     Serial.print(", vsolar=");
@@ -635,12 +640,30 @@ void getPosition()
       }
       if (gps_data.valid.satellites) {
         Serial.print(F("Satellites: "));
-        Serial.println(gps_data.satellites);
+        Serial.print(gps_data.satellites);
+      }
+      if (BATTERY_DIVIDER_RATIO) {
+        readVbatt();   // sets vbatt to minimum
+        if (vbatt >= MIN_BATT_VOLT) {
+          Serial.print(F(",   Vbatt="));
+          Serial.print(vbatt);
+          Serial.print(F(" mV\n"));
+        } else {
+          Serial.print(F("\nVbatt too low"));
+          // on the server, in ~/web/meetjestad.net/public_html/static/data/sensors_recent.php:355, 
+          // (new version) this is displayed as: 'Low battery':
+          lat24 = -32768L;   // displays -1, indicating GPS was skipped due to low battery voltage
+          lng24 = -32768L;   // displays -1, indicating GPS was skipped due to low battery voltage
+          break;
+        }
+      } else {
+        Serial.println();
       }
     }
     if (DEBUG && tolower(Serial.read()) == 's')
       break;
   }
+  Serial.println();
   digitalWrite(GPS_ENABLE_PIN, LOW);
 
   if (gps.statistics.ok == 0)
@@ -690,7 +713,7 @@ void queueData() {
   }
 #endif
 
-uint8_t extra_bits = 0;
+  uint8_t extra_bits = 0;
 
 #ifdef WITH_SPS30_I2C
   // Add *all* PM data as extra fields. This defines the extra size
@@ -844,7 +867,10 @@ uint16_t readVsolar() {
 uint16_t readVbatt() {
     analogReference(BATTERY_DIVIDER_REF);
     uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
-    return (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/1023;
+    uint16_t lVbatt = (uint32_t) (reading * BATTERY_DIVIDER_RATIO * BATTERY_DIVIDER_REF_MV) / 1023;
+    if (lVbatt < vbatt)
+         vbatt = lVbatt;   // vbatt = minimum value
+    return lVbatt;
 }
 
 /**
