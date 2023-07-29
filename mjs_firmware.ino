@@ -189,7 +189,7 @@ uint16_t readVsolar();
 uint16_t readVbatt();
 bool batteryVoltageOk(uint16_t voltage, const __FlashStringHelper* device);
 #ifdef WITH_LUX
-uint32_t readLux():
+uint32_t readLux();
 #endif // WITH_LUX
 #ifdef WITH_SPS30_I2C
 struct sps30_measurement readSps30();
