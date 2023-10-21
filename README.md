@@ -74,6 +74,14 @@ files using the IDE itself:
  3. Close the preferences, and open Tools -> Board -> Boards Manager...
  4. Find the "Meet je stad! STM32L0 Boards" in the list, and click Install.
 
+And you might need to set up permissions or drivers:
+ 1. Easiest way on Linux: Install the `dfu-util` package from your distribution. e.g.:
+
+        sudo apt install dfu-util
+
+ 2. For details and other systems [see the `mjs_boards`
+    documentation](https://github.com/meetjestad/mjs_boards/tree/stm32l0#os-specific-setup).
+
 Next, to actually compile and upload the sketch:
  1. Connect the sensor board to your computer using your USB-to-serial
     converter (original board) or USB-C cable (MJS2020 board). Make sure
