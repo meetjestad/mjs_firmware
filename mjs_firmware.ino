@@ -242,7 +242,7 @@ bool setup_serialusb() {
 }
 #endif // defined(SERIAL_IS_SERIALUSB) || defined(SERIAL_IS_CONFIGURABLE)
 
-bool setup_serial() {
+void setup_serial() {
   #if defined(ARDUINO_MJS_V1) || defined(SERIAL_IS_SERIAL1)
   // For a hardware serial port, just call begin and be done.
   // Anyone interested in the output can start listening before power-up
