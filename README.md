@@ -1,4 +1,4 @@
-Meet je stad sensor firmare
+Meet je stad station firmware
 ===========================
 This repository contains the firmware (in the form of an Arduino sketch)
 for the Meet je stad! sensor boards. These boards contain a number of
