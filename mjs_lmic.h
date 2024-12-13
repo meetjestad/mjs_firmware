@@ -204,12 +204,13 @@ void onEvent (ev_t ev) {
   }
 }
 
-void printHex(const __FlashStringHelper *prefix, uint8_t *buf, size_t len) {
+void printHex(const __FlashStringHelper *prefix, uint8_t *buf, size_t len, bool reverse = false) {
   Serial.print(prefix);
   for (size_t i = 0; i < len; ++i) {
-    if (buf[i] < 0x10)
+    uint8_t b = reverse ? buf[len - i - 1]: buf[i];
+    if (b < 0x10)
       Serial.write('0');
-    Serial.print(buf[i], HEX);
+    Serial.print(b, HEX);
   }
   Serial.println();
 }
@@ -247,11 +248,11 @@ void mjs_lmic_setup() {
     Serial.print("meetstation-");
     Serial.println((uint16_t)buf[1] << 8 | buf[0]);
   }
-  printHex(F("Dev EUI: "), buf, MJS_DEV_EUI_LEN);
+  printHex(F("Dev EUI: "), buf, MJS_DEV_EUI_LEN, true);
   os_getArtEui(buf);
-  printHex(F("App EUI: "), buf, MJS_APP_EUI_LEN);
+  printHex(F("App EUI: "), buf, MJS_APP_EUI_LEN, true);
   os_getDevKey(buf);
-  printHex(F("App Key: "), buf, MJS_APP_KEY_LEN);
+  printHex(F("App Key: "), buf, MJS_APP_KEY_LEN, false);
 
   // LMIC init
   os_init(OS_INIT_ARG);
