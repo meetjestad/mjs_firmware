@@ -66,6 +66,8 @@ const uint32_t TX_TIMEOUT = 60000;
 #include <SPI.h>
 #include <avr/eeprom.h>
 
+#include "base32.h"
+
 #if defined(USE_BASICMAC)
   #define os_getArtEui os_getJoinEui
   #define os_getDevKey os_getNwkKey
@@ -137,6 +139,8 @@ const lmic_pinmap lmic_pins = {
 
 ev_t waitingForEvent = (ev_t)0;
 
+void mjs_credentials_join_success();
+
 void onEvent (ev_t ev) {
   if (waitingForEvent == ev)
     waitingForEvent = (ev_t)0;
@@ -165,6 +169,7 @@ void onEvent (ev_t ev) {
         break;
       case EV_JOINED:
         Serial.println(F("EV_JOINED"));
+        mjs_credentials_join_success();
         // Disable link check validation
         LMIC_setLinkCheckMode(0);
         break;
@@ -215,17 +220,98 @@ void printHex(const __FlashStringHelper *prefix, uint8_t *buf, size_t len, bool 
   Serial.println();
 }
 
-void mjs_lmic_setup() {
+struct Credentials {
+  uint8_t appEui[MJS_APP_EUI_LEN];
+  uint8_t devEui[MJS_DEV_EUI_LEN];
+  uint8_t appKey[MJS_APP_KEY_LEN];
+};
+
+bool mjs_credentials_pending = false;
+
+bool mjs_credentials_get_from_serial(Credentials *c) {
+  // Clear input buffer
+  while(Serial.read() != -1) /* nothing */;
+
+  Serial.print(F("Enter credential bundle: "));
+
+  uint8_t buf[MJS_APP_EUI_LEN + MJS_DEV_EUI_LEN + MJS_APP_KEY_LEN];
+  BitStream bs(buf, sizeof(buf));
+
+  uint8_t header[3];
+
+  // A credential bundle is the base32 encoding of the string "lwc"
+  // (LoRaWAN credentials), appEUI (big endian), devEUI (big endian) and
+  // appKey, seperated by periods (after base32 encoding). Base32
+  // padding can be omitted.
+  int next = base32Read(Serial, header, sizeof(header));
+  if (next < 0 || next != '.' || memcmp(header, "lwc", sizeof(header) != 0))
+    return false;
+  next = base32Read(Serial, c->appEui, sizeof(c->appEui));
+  if (next < 0 || next != '.')
+    return false;
+  next = base32Read(Serial, c->devEui, sizeof(c->devEui));
+  if (next < 0 || next != '.')
+    return false;
+  next = base32Read(Serial, c->appKey, sizeof(c->appKey));
+  if (next < 0 || next != '\n' && next != '\r')
+    return false;
+
+  return true;
+}
+
+void mjs_credentials_save_new(Credentials *c) {
+  #if defined(EEPROM_LAYOUT_MAGIC_START)
+  // Invalidate layout magic to ensure these credentials are not used
+  // on the next reboot
+  eeprom_write_dword((uint32_t*)EEPROM_LAYOUT_MAGIC_START, 0xffffffff);
+
+  eeprom_write_block(&c->appEui, (uint32_t*)EEPROM_APP_EUI_START, sizeof(c->appEui));
+  eeprom_write_block(&c->devEui, (uint32_t*)EEPROM_DEV_EUI_START, sizeof(c->devEui));
+  eeprom_write_block(&c->appKey, (uint32_t*)EEPROM_APP_KEY_START, sizeof(c->appKey));
+  #else
+  #error "Credential saving not implemented for flash"
+  #endif
+}
+
+void mjs_credentials_join_success() {
+  if (mjs_credentials_pending) {
+    Serial.println(F("New credentials work, saving them permanently"));
+    #if defined(EEPROM_LAYOUT_MAGIC_START)
+    eeprom_write_dword((uint32_t*)EEPROM_LAYOUT_MAGIC_START, MJS_LAYOUT_MAGIC);
+    #else
+    #error "Credential saving not implemented for flash"
+    #endif
+    mjs_credentials_pending = false;
+  }
+}
+
+void mjs_credentials_setup() {
   // Check whether the layout of the EEPROM is correct
   #if defined(EEPROM_LAYOUT_MAGIC_START)
   uint32_t hash = eeprom_read_dword((uint32_t*)EEPROM_LAYOUT_MAGIC_START);
   #else
   uint32_t hash = *((uint32_t*)FLASH_LAYOUT_MAGIC_START);
   #endif
-  if (hash != MJS_LAYOUT_MAGIC && hash != MJS_LAYOUT_MAGIC_OLD) {
-    Serial.println(F("Factory info is not correctly configured"));
 
-    while (true) /* nothing */;
+  if (hash != MJS_LAYOUT_MAGIC && hash != MJS_LAYOUT_MAGIC_OLD) {
+    Serial.println();
+    Serial.println(F("No The Things Network credentials found."));
+    Serial.println(F("Go to https://TODO to register your device, then enter the generated credential bundle below."));
+    Serial.println();
+
+    Credentials c;
+    while (mjs_credentials_get_from_serial(&c) == false) {
+      Serial.println();
+      Serial.println(F("Invalid credential format. A valid credential bundle starts with \"NR3WW.\" and consists of 60 uppercase letters, numbers and dots. Please try again."));
+      Serial.println();
+    }
+    Serial.println();
+
+    // This saves just the credentials, the magic value is written only
+    // after a successful join to prevent using potentially invalid or
+    // expired credentials (without an easy way to change them again).
+    mjs_credentials_save_new(&c);
+    mjs_credentials_pending = true;
   }
 
   #if defined(EEPROM_OSCCAL_START)
@@ -239,6 +325,10 @@ void mjs_lmic_setup() {
     }
   }
   #endif
+}
+
+void mjs_lmic_setup() {
+  mjs_credentials_setup();
 
   uint8_t buf[MJS_APP_KEY_LEN];
   os_getDevEui(buf);
@@ -253,6 +343,11 @@ void mjs_lmic_setup() {
   printHex(F("App EUI: "), buf, MJS_APP_EUI_LEN, true);
   os_getDevKey(buf);
   printHex(F("App Key: "), buf, MJS_APP_KEY_LEN, false);
+
+  if (mjs_credentials_pending) {
+    Serial.println(F("Trying new credentials, will be stored permanently once join succeeds"));
+    Serial.println();
+  }
 
   // LMIC init
   os_init(OS_INIT_ARG);
