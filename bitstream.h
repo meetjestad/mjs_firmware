@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdint.h>
+#include <string.h>
+
 /**
  * Class that writes signed or unsigned integers with any bit size (not
  * requiring multiples of 8) to a buffer. This class in intended to be
