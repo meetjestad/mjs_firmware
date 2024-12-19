@@ -1,3 +1,13 @@
+Changes in v6
+=============
+ - Support entering LoRaWAN credentials via serial if none are present
+   in EEPROM (only v1 stations for now, MJS2020 stations must still be
+   pre-preprogrammed with credentials).
+ - Fix printing of EUIs on startup, they were accidentally
+   byte-reversed.
+ - Fix compilation with `WITH_LUX` defined.
+ - Some cosmetic source changes.
+
 Changes in v5
 =============
  - Support for the MJS2020 board.
