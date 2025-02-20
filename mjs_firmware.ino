@@ -310,7 +310,7 @@ void setup() {
   htu.begin();
 
   #if defined(WITH_SPS30_I2C)
-    sensirion_i2c_init();
+    sensirion_i2c_init(Wire1);
   #endif
 
 
