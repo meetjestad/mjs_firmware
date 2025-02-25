@@ -24,7 +24,7 @@
 #elif defined(ARDUINO_ARCH_STM32L0)
   #include "STM32L0.h"
 #endif
-#include <NMEAGPS.h>
+#include <TinyGPSPlus.h>
 
 #define DEBUG true
 #include "bitstream.h"
@@ -132,7 +132,7 @@ float const lx_conv_low = 1.0E6 / (R12 * light_current * 1024.0);
 HTU21D htu;
 
 // GPS reader
-NMEAGPS gps;
+TinyGPSPlus gps;
 
 // Most recently read values
 float temperature;
@@ -171,7 +171,6 @@ enum {
 
 uint32_t lastUpdateTime = 0;
 uint32_t updatesBeforeGpsUpdate = 0;
-gps_fix gps_data;
 
 uint8_t const LORA_PORT = 13;
 
@@ -432,7 +431,7 @@ void loop() {
       LMIC_setDrTxpow(DR_SF12, 14);
     } else {
       // Clear gps fix to prevent sending stale data
-      memset(&gps_data, 0, sizeof(gps_data));
+      gps = {};
     }
   } else {
     LMIC_setDrTxpow(DR_SF9, 14);
@@ -545,11 +544,11 @@ void doSleep(uint32_t time) {
 }
 
 void dumpData() {
-  if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
+  if (gps.location.isValid()) {
     Serial.print(F("lat/lon: "));
-    Serial.print(gps_data.latitudeL()/10000000.0, 6);
+    Serial.print(gps.location.lat(), 6);
     Serial.print(F(","));
-    Serial.println(gps_data.longitudeL()/10000000.0, 6);
+    Serial.println(gps.location.lng(), 6);
   } else {
     Serial.println(F("No GPS fix"));
   }
@@ -600,6 +599,12 @@ void dumpData() {
   Serial.flush();
 }
 
+int32_t encodePos(RawDegrees raw) {
+  // Encodes position as signed 16.15 fixed point (intended to be
+  // truncated to 8.15 fixed point).
+  return (int32_t)raw.deg * 32768 + ((int64_t)raw.billionths * 32768 / 1000000000) * (raw.negative ? -1 : 1);
+}
+
 void getPosition()
 {
   #if defined(GPS_USE_SOFTWARE_SERIAL)
@@ -608,10 +613,7 @@ void getPosition()
   #endif
 
   GPS_SERIAL.begin(9600);
-  memset(&gps_data, 0, sizeof(gps_data));
-  gps.reset();
-  gps.statistics.init();
-
+  gps = {};
   digitalWrite(GPS_ENABLE_PIN, HIGH);
 
   // Empty serial input buffer, so only new characters are processed
@@ -623,27 +625,26 @@ void getPosition()
   unsigned long startTime = millis();
   uint8_t valid = 0;
   while (millis() - startTime < GPS_TIMEOUT && valid < 10) {
-    if (gps.available(GPS_SERIAL)) {
-      gps_data = gps.read();
-      if (gps_data.valid.location && gps_data.valid.status && gps_data.status >= gps_fix::STATUS_STD) {
-        valid++;
-        lat24 = int32_t((int64_t)gps_data.latitudeL() * 32768 / 10000000);
-        lng24 = int32_t((int64_t)gps_data.longitudeL() * 32768 / 10000000);
-      } else {
-        lat24 = 0;
-        lng24 = 0;
-      }
-      if (gps_data.valid.satellites) {
-        Serial.print(F("Satellites: "));
-        Serial.println(gps_data.satellites);
-      }
+    gps.encode(GPS_SERIAL.read());
+    if (gps.location.isValid()) {
+      valid++;
+      lat24 = encodePos(gps.location.rawLat());
+      lng24 = encodePos(gps.location.rawLng());
+    } else {
+      // TOOD: valid = 0
+      lat24 = 0;
+      lng24 = 0;
+    }
+    if (gps.satellites.isValid()) {
+      Serial.print(F("Satellites: "));
+      Serial.println(gps.satellites.value());
     }
     if (DEBUG && tolower(Serial.read()) == 's')
       break;
   }
   digitalWrite(GPS_ENABLE_PIN, LOW);
 
-  if (gps.statistics.ok == 0)
+  if (gps.charsProcessed() == 0)
     Serial.println(F("No GPS data received, check wiring"));
 
   GPS_SERIAL.end();
