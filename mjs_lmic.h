@@ -271,6 +271,35 @@ bool mjs_credentials_get_from_serial(Credentials *c) {
   return true;
 }
 
+#if defined(ARDUINO_MJS2020)
+void write_option_bytes() {
+  // This is bit 31-16 of FLASH_OPTR, aka the "user" option bytes.
+  uint16_t value_to_write  = /* default */ 0x8070 | /* BOR level 5 / 2.7V */ 0x6;
+
+  noInterrupts();
+  // Clear PELOCK
+  FLASH->PEKEYR = 0x89ABCDEF;
+  FLASH->PEKEYR = 0x02030405;
+
+  // Clear OPTLOCK, unlock OBL_LAUNCH
+  FLASH->OPTKEYR = 0xFBEAD9C8;
+  FLASH->OPTKEYR = 0x24252627;
+
+  while(FLASH->SR & FLASH_SR_BSY) /* wait */;
+  // Clear End-of-program
+  FLASH->SR = FLASH_SR_EOP;
+
+  // This writes the value along with its inverse as a checksum
+  OB->USER = (uint32_t)~value_to_write << 16 | value_to_write;
+
+  while(!(FLASH->SR & FLASH_SR_EOP)) /* wait */;
+
+  // Relock
+  FLASH->PECR = FLASH_PECR_OPTLOCK | FLASH_PECR_PELOCK;
+  interrupts();
+}
+#endif
+
 void mjs_credentials_save_new(Credentials *c) {
   // Invalidate layout magic to ensure these credentials are not used
   // on the next reboot
@@ -279,6 +308,15 @@ void mjs_credentials_save_new(Credentials *c) {
   eeprom_write_block(&c->appEui, (uint32_t*)EEPROM_APP_EUI_START, sizeof(c->appEui));
   eeprom_write_block(&c->devEui, (uint32_t*)EEPROM_DEV_EUI_START, sizeof(c->devEui));
   eeprom_write_block(&c->appKey, (uint32_t*)EEPROM_APP_KEY_START, sizeof(c->appKey));
+
+  #if defined(ARDUINO_MJS2020)
+  // Configure the option bytes. On older boards, this was done when
+  // preconfiguring credentials, so it makes sense to do this when
+  // saving the credentials, which should happen as one of the first
+  // things (the board will run fine with the default option bytes too,
+  // just without the brown-out detection enabled).
+  write_option_bytes();
+  #endif
 }
 
 void mjs_credentials_join_success() {
