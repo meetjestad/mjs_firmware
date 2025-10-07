@@ -15,24 +15,28 @@
 #define MJS_DEV_EUI_LEN 8
 #define MJS_APP_KEY_LEN 16
 
-#if defined(ARDUINO_ARCH_STM32L0) && defined(USE_EEPROM_ON_MJS2020)
-  // New layout
-  // TODO: This actually more dynamic than this and has a CRC
+#if defined(ARDUINO_ARCH_STM32L0)
+  // Layout for MJS2020, put at the end of EEPROM for extra safety (less
+  // likely to be overwritten).
   // TODO: Do not hardcode this size (but EEPROM.length() is not
   // correct, see
   // https://github.com/GrumpyOldPizza/ArduinoCore-stm32l0/pull/166
   #define EEPROM_SIZE 6144
-  #define MJS_LAYOUT_MAGIC_OLD 0x023BE0B6 // Just a random number, stored little-endian
-  #define MJS_LAYOUT_MAGIC 0x023BE0B6 // Just a random number, stored little-endian
-  #define EEPROM_LAYOUT_MAGIC_START (EEPROM_SIZE - EEPROM_LAYOUT_MAGIC_LEN)
+  #define EEPROM_LAYOUT_MAGIC 0x2a60af88 // Just a random number, stored little-endian
   #define EEPROM_LAYOUT_MAGIC_LEN 4
+  #define EEPROM_LAYOUT_MAGIC_START (EEPROM_SIZE - EEPROM_LAYOUT_MAGIC_LEN)
   #define EEPROM_BLOCK_SEGMENT_FOOTER_LEN 6
   #define EEPROM_APP_EUI_START (EEPROM_DEV_EUI_START - MJS_APP_EUI_LEN)
   #define EEPROM_DEV_EUI_START (EEPROM_APP_KEY_START - MJS_DEV_EUI_LEN)
-  #define EEPROM_APP_KEY_START (EEPROM_LAYOUT_MAGIC_START - EEPROM_BLOCK_SEGMENT_FOOTER_LEN - MJS_APP_KEY_LEN)
-#elif defined(ARDUINO_ARCH_STM32L0)
-  #define MJS_LAYOUT_MAGIC_OLD 0x023BE0B6 // Just a random number, stored little-endian
-  #define MJS_LAYOUT_MAGIC 0x023BE0B6 // Just a random number, stored little-endian
+  #define EEPROM_APP_KEY_START (EEPROM_LAYOUT_MAGIC_START - MJS_APP_KEY_LEN)
+
+  // TODO: This actually more dynamic than this (containing a list of
+  // tagged segments, not fixed offsets) and has a CRC, but in practice
+  // was only used with a single fixed segment.
+  // The flash layout was used when boards were preprogrammed with
+  // credentials, later boards received their credentials via serial and
+  // wrote them to EEPROM.
+  #define FLASH_LAYOUT_MAGIC 0x023BE0B6 // Just a random number, stored little-endian
   #define FLASH_LAYOUT_MAGIC_START (FLASH_SIZE - FLASH_LAYOUT_MAGIC_LEN)
   #define FLASH_LAYOUT_MAGIC_LEN 4
   #define FLASH_BLOCK_SEGMENT_FOOTER_LEN 6
@@ -41,8 +45,8 @@
   #define FLASH_APP_KEY_START (FLASH_LAYOUT_MAGIC_START - FLASH_BLOCK_SEGMENT_FOOTER_LEN - MJS_APP_KEY_LEN)
 #else
   // Original EEPROM layout for the AVR board
-  #define MJS_LAYOUT_MAGIC_OLD 0x2a60af86 // Just a random number, stored little-endian
-  #define MJS_LAYOUT_MAGIC 0x2a60af87 // Just a random number, stored little-endian
+  #define EEPROM_LAYOUT_MAGIC_OLD 0x2a60af86 // Just a random number, stored little-endian
+  #define EEPROM_LAYOUT_MAGIC 0x2a60af87 // Just a random number, stored little-endian
   #define EEPROM_LAYOUT_MAGIC_START 0x00 // 4 bytes
   #define EEPROM_OSCCAL_START (EEPROM_LAYOUT_MAGIC_START + 4) // 1 byte
   #define EEPROM_APP_EUI_START (EEPROM_OSCCAL_START + 1)
@@ -80,33 +84,41 @@ const uint32_t TX_TIMEOUT = 60000;
   #define OS_INIT_ARG
 #endif
 
+
+#if defined(FLASH_LAYOUT_MAGIC_START)
+bool credentials_in_flash;
+#endif
+
 void os_getArtEui (uint8_t* buf) {
   for (byte i = 0; i < MJS_APP_EUI_LEN; i++) {
-    #if defined(EEPROM_APP_EUI_START)
-    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + MJS_APP_EUI_LEN - 1 - i);
-    #else
-    buf[i] = *((uint8_t*)FLASH_APP_EUI_START + MJS_APP_EUI_LEN - 1 - i);
+    #if defined(FLASH_LAYOUT_MAGIC)
+    if (credentials_in_flash)
+      buf[i] = *((uint8_t*)FLASH_APP_EUI_START + MJS_APP_EUI_LEN - 1 - i);
+    else
     #endif
+      buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_EUI_START + MJS_APP_EUI_LEN - 1 - i);
   }
 }
 
 void os_getDevEui (uint8_t* buf) {
   for (byte i = 0; i < MJS_DEV_EUI_LEN; i++) {
-    #if defined(EEPROM_DEV_EUI_START)
-    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_DEV_EUI_START + MJS_DEV_EUI_LEN - 1 - i);
-    #else
-    buf[i] = *((uint8_t*)FLASH_DEV_EUI_START + MJS_DEV_EUI_LEN - 1 - i);
+    #if defined(FLASH_LAYOUT_MAGIC)
+    if (credentials_in_flash)
+      buf[i] = *((uint8_t*)FLASH_DEV_EUI_START + MJS_DEV_EUI_LEN - 1 - i);
+    else
     #endif
+      buf[i] = eeprom_read_byte((uint8_t*)EEPROM_DEV_EUI_START + MJS_DEV_EUI_LEN - 1 - i);
   }
 }
 
 void os_getDevKey (uint8_t* buf) {
   for (byte i = 0; i < MJS_APP_KEY_LEN; i++) {
-    #if defined(EEPROM_APP_KEY_START)
-    buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_KEY_START + i);
-    #else
-    buf[i] = *((uint8_t*)FLASH_APP_KEY_START + i);
+    #if defined(FLASH_LAYOUT_MAGIC)
+    if (credentials_in_flash)
+      buf[i] = *((uint8_t*)FLASH_APP_KEY_START + i);
+    else
     #endif
+      buf[i] = eeprom_read_byte((uint8_t*)EEPROM_APP_KEY_START + i);
   }
 }
 
@@ -260,7 +272,6 @@ bool mjs_credentials_get_from_serial(Credentials *c) {
 }
 
 void mjs_credentials_save_new(Credentials *c) {
-  #if defined(EEPROM_LAYOUT_MAGIC_START)
   // Invalidate layout magic to ensure these credentials are not used
   // on the next reboot
   eeprom_write_dword((uint32_t*)EEPROM_LAYOUT_MAGIC_START, 0xffffffff);
@@ -268,32 +279,41 @@ void mjs_credentials_save_new(Credentials *c) {
   eeprom_write_block(&c->appEui, (uint32_t*)EEPROM_APP_EUI_START, sizeof(c->appEui));
   eeprom_write_block(&c->devEui, (uint32_t*)EEPROM_DEV_EUI_START, sizeof(c->devEui));
   eeprom_write_block(&c->appKey, (uint32_t*)EEPROM_APP_KEY_START, sizeof(c->appKey));
-  #else
-  #error "Credential saving not implemented for flash"
-  #endif
 }
 
 void mjs_credentials_join_success() {
   if (mjs_credentials_pending) {
     Serial.println(F("New credentials work, saving them permanently"));
-    #if defined(EEPROM_LAYOUT_MAGIC_START)
-    eeprom_write_dword((uint32_t*)EEPROM_LAYOUT_MAGIC_START, MJS_LAYOUT_MAGIC);
-    #else
-    #error "Credential saving not implemented for flash"
-    #endif
+    eeprom_write_dword((uint32_t*)EEPROM_LAYOUT_MAGIC_START, EEPROM_LAYOUT_MAGIC);
     mjs_credentials_pending = false;
   }
 }
 
 void mjs_credentials_setup() {
   // Check whether the layout of the EEPROM is correct
-  #if defined(EEPROM_LAYOUT_MAGIC_START)
   uint32_t hash = eeprom_read_dword((uint32_t*)EEPROM_LAYOUT_MAGIC_START);
-  #else
-  uint32_t hash = *((uint32_t*)FLASH_LAYOUT_MAGIC_START);
+  bool hash_ok = false;
+  if (hash == EEPROM_LAYOUT_MAGIC)
+    hash_ok = true;
+
+  #if defined(EEPROM_LAYOUT_MAGIC_OLD)
+  if (!hash_ok && hash == EEPROM_LAYOUT_MAGIC_OLD)
+    hash_ok = true;
   #endif
 
-  if (hash != MJS_LAYOUT_MAGIC && hash != MJS_LAYOUT_MAGIC_OLD) {
+  // If nothing found in EEPROM, look in flash (MJS2020 boards were
+  // preprogrammed with credentials in flash until end of 2025)
+  #if defined(FLASH_LAYOUT_MAGIC)
+  if (!hash_ok) {
+    hash = *((uint32_t*)FLASH_LAYOUT_MAGIC_START);
+    if (hash == FLASH_LAYOUT_MAGIC) {
+      hash_ok = true;
+      credentials_in_flash = true;
+    }
+  }
+  #endif
+
+  if (!hash_ok) {
     Serial.println();
     Serial.println(F("No The Things Network credentials found."));
     Serial.println(F("Go to https://meetjestad.net/register to register your device, then enter the generated credential bundle below."));
@@ -317,7 +337,7 @@ void mjs_credentials_setup() {
   #if defined(EEPROM_OSCCAL_START)
   // Old magic indicates the bootloader did not handle OSCCAL yet, so we
   // need to load it from EEPROM
-  if (hash == MJS_LAYOUT_MAGIC_OLD) {
+  if (hash == EEPROM_LAYOUT_MAGIC_OLD) {
     // Read OSCCAL from EEPROM
     uint8_t osccal_byte = eeprom_read_byte((uint8_t*)EEPROM_OSCCAL_START);
     if (osccal_byte != 0xff) {
