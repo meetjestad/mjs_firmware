@@ -1,3 +1,11 @@
+Changes in v7
+=============
+ - Support entering LoRaWAN credentials via serial also on MJS2020. This
+   also fixes compilation on MJS2020 which was accidentally broken in
+   v6 because credential writing was not supported.
+ - Write option bytes on MJS2020 at the same time as writing
+   credentials.
+
 Changes in v6
 =============
  - Support entering LoRaWAN credentials via serial if none are present

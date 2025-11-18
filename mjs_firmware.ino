@@ -35,7 +35,7 @@
 // signficant changes happen, and/or a version is deployed onto
 // production nodes). This value should correspond to a release tag.
 // For untagged/experimental versions, use 255.
-const uint8_t FIRMWARE_VERSION = 6;
+const uint8_t FIRMWARE_VERSION = 7;
 
 // Baudrate for hardware serial port
 const uint16_t SERIAL_BAUD = 9600;
