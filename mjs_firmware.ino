@@ -1,5 +1,5 @@
 /*******************************************************************************
-   Copyright (c) 2016 Thomas Telkamp, Matthijs Kooijman, Bas Peschier, Harmen Zijp
+   Copyright (c) 2016-2021 Thomas Telkamp, Matthijs Kooijman, Bas Peschier, Harmen Zijp
 
    Permission is hereby granted, free of charge, to anyone
    obtaining a copy of this document and accompanying files,
@@ -7,6 +7,42 @@
    including, but not limited to, copying, modification and redistribution.
    NO WARRANTY OF ANY KIND IS PROVIDED.
 
+   There is a zipfile available at https://www.meetjestad.net/static/meten/files/arduino-bundle-v5.zip
+   to be unpacked in directory ~/Arduino
+
+   In order to compile the following libraries need to be installed:
+   - SparkFunHTU21D: https://github.com/sparkfun/SparkFun_HTU21D_Breakout_Arduino_Library
+   - NeoGPS (mjs-specific fork): https://github.com/meetjestad/NeoGPS
+   - Adafruit_SleepyDog: https://github.com/adafruit/Adafruit_SleepyDog
+   - lmic (mjs-specific fork): https://github.com/meetjestad/arduino-lmic
+
+   Settings for MJS V1:
+   - Board: Meetjestad! AVR boards (in sketchbook) -> MJS meetstation
+   - Programmer: AVRisp mkII
+   - lmic.h: 23479 bytes dd 21-5-2021
+   - Port: /dev/USB0
+
+   Settings for MJS2020:
+   - In File->Preferences, in the "Additional board manager URLs", add the following url:
+         https://github.com/meetjestad/mjs_boards/raw/master/package_meetjestad.net_index.json
+   - Board: "MJS2020-PROTO2"
+   - Port: /dev/ttyACM0   (becomes available after a reset)
+   - USB-type: "Serial"
+   - CPU Speed: "32 MHz"
+   - Optimize: "Smallest Code"
+   - Serial refers to: SerialUSB
+   - lmic.h 8884 bytes, dd 27-5-2021
+   - In Ubuntu Linux, add a file /etc/udev/rules.d/mjs2020.rules with content:
+         SUBSYSTEM=="usb",        ATTRS{idVendor}=="0483", MODE="0666"
+         SUBSYSTEM=="usb_device", ATTRS{idVendor}=="0483", MODE="0666"
+   MJS2020 stations can be programmed as follows:
+    • press “SW1” near the USB-C connector; now the USB port (@Linux: e.g. /dev/ttyACM0) should reactivate
+    • connect the programming jumper (near the “Boot” button)
+    • press “Boot” again
+    • @Linux, lsusb should now show: “STMicro electronics STMdevice in DFU mode”
+    • start the Arduino IDE compiler, followed by upload
+    • when that is uploading, gently remove the jumper
+    • you might need to press “Boot” again
    See README.md for the required libraries and other components for this sketch.
  *******************************************************************************/
 
@@ -14,7 +50,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
-#include <SparkFunHTU21D.h>
+#include <SparkFunHTU21D.h>   // version with ElecID
 #include <sps30.h>
 #if defined(ARDUINO_MJS_V1)
   #include <SoftwareSerial.h>
@@ -41,7 +77,8 @@ const uint8_t FIRMWARE_VERSION = 255;
 const uint16_t SERIAL_BAUD = 9600;
 
 // When this voltage is reached, skip power hungry sensors
-uint16_t const MIN_BATT_VOLT = 3300;
+uint16_t const MIN_BATT_VOLT = 3400;
+
 
 #if defined(ARDUINO_MJS_V1)
 
@@ -50,14 +87,15 @@ uint16_t const MIN_BATT_VOLT = 3300;
 // 0.0 means not to measure the voltage. On first generation boards, this
 // should only be enabled when the AREF pin of the microcontroller was
 // disconnected.
-float const BATTERY_DIVIDER_RATIO = 0.0;
-//float const BATTERY_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
+//float const BATTERY_DIVIDER_RATIO = 0.0;
+float const BATTERY_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
 uint8_t const BATTERY_DIVIDER_PIN = A0;
 auto const BATTERY_DIVIDER_REF = INTERNAL;
 uint16_t const BATTERY_DIVIDER_REF_MV = 1137;
 
 float const SOLAR_DIVIDER_RATIO = 0;
-uint8_t const SOLAR_DIVIDER_PIN = 0;
+//float const SOLAR_DIVIDER_RATIO = (100.0 + 470.0) / 100.0;
+uint8_t const SOLAR_DIVIDER_PIN = A1;
 auto const SOLAR_DIVIDER_REF = INTERNAL;
 uint16_t const SOLAR_DIVIDER_REF_MV = 1137;
 
@@ -95,7 +133,6 @@ uint8_t const LED_PIN = LED_BUILTIN;
 uint8_t const LED_ON = LOW;
 uint8_t const LUX_HIGH_PIN = 0; // TODO: PA6 not mapped?
 uint8_t const LUX_PIN = 0; // TODO: PC3 not mapped?
-
 // Enable this define when an SPS30 is attached over I²C
 #define WITH_SPS30_I2C
 
@@ -137,8 +174,10 @@ NMEAGPS gps;
 // Most recently read values
 float temperature;
 float humidity;
+uint32_t elecid1;
+// uint32_t elecid2;
 uint16_t vcc = 0;
-uint16_t vbatt = 0;
+uint16_t vbatt = 9999;
 uint16_t vsolar = 0;
 
 #ifdef WITH_LUX
@@ -156,6 +195,7 @@ uint32_t const UPDATE_INTERVAL = 900000;
 uint32_t const GPS_TIMEOUT = 120000;
 // Update GPS position after transmitting this many updates
 uint16_t const GPS_UPDATE_RATIO = 24*4;
+//uint16_t const GPS_UPDATE_RATIO = 1;   // every time
 
 // When sending extra data, use this many bits to specify the size
 // (allows up to 32-bit values)
@@ -310,15 +350,17 @@ void setup() {
   htu.begin();
 
   #if defined(WITH_SPS30_I2C)
-    sensirion_i2c_init();
+  sensirion_i2c_init();   // battery voltage check ignored here
   #endif
 
 
   if (DEBUG) {
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
+    elecid1 = htu.readElecID1();
+    // elecid2 = htu.readElecID2();
     if (BATTERY_DIVIDER_RATIO)
-      vbatt = readVbatt();
+      readVbatt();   // lowers vbatt
     if (SOLAR_DIVIDER_RATIO)
       vsolar = readVsolar();
     vcc = readVcc();
@@ -328,7 +370,8 @@ void setup() {
 
 #if defined(WITH_SPS30_I2C)
     char sps30_serial[SPS30_MAX_SERIAL_LEN];
-    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+    sps30_serial[0] = 0;
+    if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(readVbatt(), F("SPS30"))) {
       #if defined(ARDUINO_MJS2020)
       digitalWrite(PIN_ENABLE_5V, HIGH);
       #endif // defined(ARDUINO_MJS2020)
@@ -349,11 +392,21 @@ void setup() {
     Serial.println(temperature);
     Serial.print(F("Humidity: "));
     Serial.println(humidity);
+
+    Serial.print(F("ElecID1: 0x"));
+    Serial.print(elecid1, HEX);
+    Serial.print(F("="));
+    Serial.println(elecid1);
+    // Serial.print(F("ElecID2: 0x"));
+    // Serial.print(elecid2, HEX);
+    // Serial.print(F("="));
+    // Serial.println(elecid2);
+
     if (BATTERY_DIVIDER_RATIO) {
       Serial.print(F("Battery Divider Ratio: "));
       Serial.println(BATTERY_DIVIDER_RATIO);
       Serial.print(F("Vbatt: "));
-      Serial.println(vbatt);
+      Serial.println(readVbatt());   // current value
     }
     if (SOLAR_DIVIDER_RATIO) {
       Serial.print(F("Solar Divider Ratio: "));
@@ -417,7 +470,7 @@ void loop() {
 
   // Read battery early to allow using it for deciding whether to enable GPS
   if (BATTERY_DIVIDER_RATIO)
-    vbatt = readVbatt();
+    readVbatt();   // sets vbatt to minimum
 
   // Activate GPS every now and then to update our position
   if (updatesBeforeGpsUpdate == 0) {
@@ -442,6 +495,8 @@ void loop() {
   // Activate and read our sensors
   temperature = htu.readTemperature();
   humidity = htu.readHumidity();
+  elecid1 = htu.readElecID1();
+  // elecid2 = htu.readElecID2();
   vcc = readVcc();
 #ifdef WITH_LUX
   lux = readLux();
@@ -449,7 +504,7 @@ void loop() {
   if (SOLAR_DIVIDER_RATIO)
     vsolar = readVsolar();
 #if defined(WITH_SPS30_I2C)
-  if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+  if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(readVbatt(), F("SPS30"))) {
     writeLed(0xff00ff); // purple
     sps30_data = readSps30();
     writeLed(0x000000); // off
@@ -558,9 +613,16 @@ void dumpData() {
   Serial.print(temperature, 1);
   Serial.print(F(", hum="));
   Serial.print(humidity, 1);
+  Serial.print(F(", ID1=0x"));
+  Serial.print(elecid1, HEX);
+  // Serial.print(F(", ID2=0x"));
+  // Serial.print(elecid2, HEX);
+  Serial.print(F(", updates2go="));
+  Serial.print(updatesBeforeGpsUpdate);
+  
   if (BATTERY_DIVIDER_RATIO) {
     Serial.print(", vbatt=");
-    Serial.print(vbatt);
+    Serial.print(readVbatt());   // current value
   }
   if (SOLAR_DIVIDER_RATIO) {
     Serial.print(", vsolar=");
@@ -635,12 +697,30 @@ void getPosition()
       }
       if (gps_data.valid.satellites) {
         Serial.print(F("Satellites: "));
-        Serial.println(gps_data.satellites);
+        Serial.print(gps_data.satellites);
+      }
+      if (BATTERY_DIVIDER_RATIO) {
+        readVbatt();   // sets vbatt to minimum
+        if (vbatt >= MIN_BATT_VOLT) {
+          Serial.print(",   Vbatt=");
+          Serial.print(vbatt);
+          Serial.print(F(" mV\n"));
+        } else {
+          Serial.print(F("\nVbatt too low"));
+          lat24 = -32768L;   // displays -1, indicating GPS was skipped due to low battery voltage
+          lng24 = -32768L;   // displays -1, indicating GPS was skipped due to low battery voltage
+          //lat24 = 0;
+          //lng24 = 0;
+          break;
+        }
+      } else {
+        Serial.println();
       }
     }
     if (DEBUG && tolower(Serial.read()) == 's')
       break;
   }
+  Serial.println();
   digitalWrite(GPS_ENABLE_PIN, LOW);
 
   if (gps.statistics.ok == 0)
@@ -690,7 +770,7 @@ void queueData() {
   }
 #endif
 
-uint8_t extra_bits = 0;
+  uint8_t extra_bits = 0;
 
 #ifdef WITH_SPS30_I2C
   // Add *all* PM data as extra fields. This defines the extra size
@@ -708,6 +788,13 @@ uint8_t extra_bits = 0;
     extra_bits += EXTRA_SIZE_BITS + SOLAR_EXTRA_FIELD_BITS;
   }
 
+  if (updatesBeforeGpsUpdate == GPS_UPDATE_RATIO - 1) {
+    #define ELECID1_EXTRA_FIELD_BITS 32
+    extra_bits += EXTRA_SIZE_BITS + ELECID1_EXTRA_FIELD_BITS;
+    // #define ELECID2_EXTRA_FIELD_BITS 32
+    // extra_bits += EXTRA_SIZE_BITS + ELECID2_EXTRA_FIELD_BITS;
+  }
+  
   if (extra_bits) {
     flags |= FLAG_WITH_EXTRA;
     length += (extra_bits + 7)/8;
@@ -748,7 +835,7 @@ uint8_t extra_bits = 0;
 
   if (BATTERY_DIVIDER_RATIO) {
     // Encoded in units of 20mv
-    uint8_t batt = vbatt / 20;
+    uint16_t batt = vbatt / 20;
     // Shift down, zero means 1V now
     if (batt >= 50)
       packet.append(batt - 50, 8);
@@ -781,6 +868,11 @@ uint8_t extra_bits = 0;
   if (SOLAR_DIVIDER_RATIO) {
     // Encoded in units of 1mv
     appendExtra(packet, vsolar, SOLAR_EXTRA_FIELD_BITS);
+  }
+
+  if (updatesBeforeGpsUpdate == GPS_UPDATE_RATIO - 1) {
+    appendExtra(packet, elecid1, ELECID1_EXTRA_FIELD_BITS);
+    // appendExtra(packet, elecid2, ELECID2_EXTRA_FIELD_BITS);
   }
 
   // Fill any remaining bits in a partial byte with 1's, so they cannot
@@ -844,7 +936,10 @@ uint16_t readVsolar() {
 uint16_t readVbatt() {
     analogReference(BATTERY_DIVIDER_REF);
     uint16_t reading = analogRead(BATTERY_DIVIDER_PIN);
-    return (uint32_t)(reading*BATTERY_DIVIDER_RATIO*BATTERY_DIVIDER_REF_MV)/1023;
+    uint16_t lVbatt = (uint32_t) (reading * BATTERY_DIVIDER_RATIO * BATTERY_DIVIDER_REF_MV) / 1023;
+    if (lVbatt < vbatt)
+         vbatt = lVbatt;   // vbatt = minimum value
+    return lVbatt;
 }
 
 /**
