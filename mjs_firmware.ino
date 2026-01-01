@@ -23,6 +23,7 @@
   #include <util/atomic.h>
 #elif defined(ARDUINO_ARCH_STM32L0)
   #include "STM32L0.h"
+  #include "stm32l0_flash.h"
 #endif
 #include <NMEAGPS.h>
 
@@ -277,6 +278,18 @@ void setup() {
     setup_serial();
     Serial.println(F("Start"));
   }
+
+  #if defined(ARDUINO_MJS2020)
+  if (stm32l0_flash_size() != FLASH_SIZE) {
+    // Proto2 boards have a smaller flash, if built for proto3/4, this
+    // will lead to a hang later. FLASH_SIZE is set at compiletime,
+    // stm32l0_flash_size() reads the F_SIZE register
+    Serial.println(F("WARNING: Flash size mismatch, did you select the right board versions?"));
+    Serial.flush();
+    // Do not continue
+    while(true) /* nothing */;
+  }
+  #endif
 
   writeLed(0xff0c00); // orange
 
