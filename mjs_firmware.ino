@@ -276,7 +276,8 @@ void setup() {
   // when in debugging mode start serial connection
   if(DEBUG) {
     setup_serial();
-    Serial.println(F("Start"));
+    Serial.println(F("Starting..."));
+    Serial.flush();
   }
 
   #if defined(ARDUINO_MJS2020)
@@ -294,12 +295,20 @@ void setup() {
   writeLed(0xff0c00); // orange
 
   // setup LoRa transceiver
+  if (DEBUG) {
+    Serial.println(F("Setting up LoRa radio..."));
+    Serial.flush();
+  }
   mjs_lmic_setup();
 
   // Work around BasicMAC initializing LED_BUILTIN to OUTPUT, can be
   // removed once BasicMAC is fixed. This produces a very short blink.
   writeLed(0x800c00); // orange
 
+  if (DEBUG) {
+    Serial.println(F("Setting up pins..."));
+    Serial.flush();
+  }
   // setup switched ground and power down connected peripherals (GPS module)
   pinMode(GPS_ENABLE_PIN , OUTPUT);
   digitalWrite(GPS_ENABLE_PIN, LOW);
@@ -319,43 +328,71 @@ void setup() {
   pinMode(LUX_PIN, INPUT);
   #endif
 
+  if (DEBUG) {
+    Serial.println(F("Setting up temp/humid sensor..."));
+    Serial.flush();
+  }
   // start communication to sensors
   htu.begin();
 
   #if defined(WITH_SPS30_I2C)
+    if (DEBUG) {
+      Serial.println(F("Setting up i2c..."));
+      Serial.flush();
+    }
     sensirion_i2c_init();
   #endif
 
 
   if (DEBUG) {
+    Serial.println(F("Reading temp/humid..."));
+    Serial.flush();
     temperature = htu.readTemperature();
     humidity = htu.readHumidity();
-    if (BATTERY_DIVIDER_RATIO)
+    if (BATTERY_DIVIDER_RATIO) {
+      Serial.println(F("Reading battery..."));
+      Serial.flush();
       vbatt = readVbatt();
-    if (SOLAR_DIVIDER_RATIO)
+    }
+    if (SOLAR_DIVIDER_RATIO) {
+      Serial.println(F("Reading solar..."));
+      Serial.flush();
       vsolar = readVsolar();
+    }
+    Serial.println(F("Reading vcc..."));
+    Serial.flush();
     vcc = readVcc();
 #ifdef WITH_LUX
+    Serial.println(F("Reading lux..."));
+    Serial.flush();
     lux = readLux();
 #endif
 
 #if defined(WITH_SPS30_I2C)
     char sps30_serial[SPS30_MAX_SERIAL_LEN];
     if (!BATTERY_DIVIDER_RATIO || batteryVoltageOk(vbatt, F("SPS030"))) {
+      Serial.println(F("Enabling SPS30..."));
+      Serial.flush();
       #if defined(ARDUINO_MJS2020)
       digitalWrite(PIN_ENABLE_5V, HIGH);
       #endif // defined(ARDUINO_MJS2020)
       delay(500);
+      Serial.println(F("Reading SPS30 serial..."));
+      Serial.flush();
       int16_t ret = sps30_get_serial(sps30_serial);
       if (ret < 0) {
           Serial.print(F("Error reading SPS30 serial: "));
           Serial.println(ret);
       }
+      Serial.println(F("Reading SPS30 data..."));
+      Serial.flush();
       // Leave 5V on, readSps30 turns it off
       sps30_data = readSps30();
     } else {
       // Marker to indicate we skipped the read
       sps30_data.typical_particle_size = NAN;
+      Serial.println(F("Not reading SPS320, battery too low."));
+      Serial.flush();
     }
 #endif // defined(WITH_SPS30_I2C)
     Serial.print(F("Temperature: "));
@@ -414,6 +451,10 @@ void setup() {
   writeLed(0x803000); // yellow
 
   // Start join
+  if (DEBUG) {
+    Serial.println(F("Joining LoRaWAN network..."));
+    Serial.flush();
+  }
   LMIC_startJoining();
 
   // Wait for join to complete
@@ -422,6 +463,10 @@ void setup() {
     os_runloop_once();
 
   writeLed(0x000000); // off (will be turned back on for GPS directly)
+  if (DEBUG) {
+    Serial.println(F("Startup complete"));
+    Serial.flush();
+  }
 }
 
 void loop() {
