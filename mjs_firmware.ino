@@ -292,7 +292,7 @@ void setup() {
   }
   #endif
 
-  writeLed(0xff0c00); // orange
+  writeLed(0x800c00); // orange
 
   // setup LoRa transceiver
   if (DEBUG) {
